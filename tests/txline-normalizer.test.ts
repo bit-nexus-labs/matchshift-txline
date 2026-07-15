@@ -6,123 +6,236 @@ import {
   normalizeScorePayload
 } from "../src/txline/normalizer.js";
 
-describe("TxLINE normalizer", () => {
-  it("preserves observed sequence, timestamp, fixture, and source message id", () => {
-    const normalized = normalizeScorePayload(
-      {
-        FixtureId: 17271370,
-        Seq: 41,
-        Ts: 1_784_140_000,
-        MessageId: "score-message-41",
-        action: "goal",
-        team: "home",
-        minute: 49
-      },
-      { receivedTimestamp: 1_784_140_001_000 }
-    );
+function fixture(participant1IsHome = true) {
+  const normalized = normalizeFixtures([
+    {
+      FixtureId: 101,
+      StartTime: "2026-07-15T18:00:00.000Z",
+      Participant1: "Alpha",
+      Participant2: "Beta",
+      Participant1IsHome: participant1IsHome,
+      GameState: 1
+    }
+  ])[0];
+  if (normalized === undefined) {
+    throw new Error("Expected fixture normalization.");
+  }
+  return normalized;
+}
+
+function officialOdds(overrides: Record<string, unknown> = {}) {
+  return {
+    FixtureId: 101,
+    MessageId: "odds-message-1",
+    Ts: 1_784_140_000,
+    Bookmaker: "ExampleBook",
+    BookmakerId: 7,
+    SuperOddsType: "1X2",
+    GameState: "InPlay",
+    InRunning: true,
+    MarketParameters: "",
+    MarketPeriod: "FullTime",
+    PriceNames: ["1", "X", "2"],
+    Prices: [2100, 3200, 3600],
+    Pct: [47.6, 31.2, 27.8],
+    ...overrides
+  };
+}
+
+function officialScore(overrides: Record<string, unknown> = {}) {
+  return {
+    fixtureId: 101,
+    action: "goal",
+    ts: 1_784_140_100,
+    seq: 41,
+    scoreSoccer: {
+      Participant1: { Total: { Goals: 1 } },
+      Participant2: { Total: { Goals: 0 } }
+    },
+    dataSoccer: {
+      Participant: "Participant1",
+      Minutes: 49
+    },
+    ...overrides
+  };
+}
+
+describe("TxLINE official-schema normalizer", () => {
+  it("normalizes official 1X2 odds without inventing a source sequence", () => {
+    const normalized = normalizeOddsPayload(officialOdds(), {
+      fixture: fixture(false),
+      receivedTimestamp: 1_784_140_001_000
+    });
 
     expect(normalized.safeHold).toBe(false);
     expect(normalized.records).toHaveLength(1);
     expect(normalized.records[0]).toMatchObject({
-      fixtureId: "17271370",
-      sequence: 41,
+      fixtureId: "101",
+      recordId: "odds-message-1",
       sourceTimestamp: 1_784_140_000_000,
-      recordId: "score-message-41",
       provenance: "TXLINE",
-      kind: "event",
-      eventType: "GOAL"
+      kind: "odds",
+      sourceOrder: {
+        domain: "TXLINE_ODDS",
+        sourceMessageId: "odds-message-1"
+      }
+    });
+    expect(normalized.records[0]?.sequence).toBeUndefined();
+    expect(normalized.records[0]?.kind).toBe("odds");
+    if (normalized.records[0]?.kind === "odds") {
+      expect(normalized.records[0].impliedProbabilities.homeWin).toBeCloseTo(
+        27.8 / 106.6
+      );
+      expect(normalized.records[0].impliedProbabilities.awayWin).toBeCloseTo(
+        47.6 / 106.6
+      );
+    }
+  });
+
+  it("uses SSE id when MessageId is absent and derives probabilities from Prices", () => {
+    const normalized = normalizeOddsPayload(
+      officialOdds({ MessageId: undefined, Pct: undefined }),
+      { fixture: fixture(), eventId: "sse-odds-9" }
+    );
+
+    expect(normalized.safeHold).toBe(false);
+    expect(normalized.records[0]).toMatchObject({
+      recordId: "sse-odds-9",
+      sourceOrder: {
+        domain: "TXLINE_ODDS",
+        sseEventId: "sse-odds-9"
+      }
     });
   });
 
-  it("fails closed for missing ordering or invalid timestamps", () => {
-    const noSequence = normalizeScorePayload({
-      FixtureId: 1,
-      Ts: 1_784_140_000,
-      action: "kickoff"
-    });
-    const badTimestamp = normalizeOddsPayload({
-      FixtureId: 1,
-      seq: 7,
-      ts: "not-a-time",
-      homeProbability: 0.5,
-      drawProbability: 0.25,
-      awayProbability: 0.25
-    });
+  it("ignores unsupported odds markets without poisoning score state", () => {
+    const normalized = normalizeOddsPayload(
+      officialOdds({ SuperOddsType: "Total", MarketParameters: "2.5" }),
+      { fixture: fixture() }
+    );
 
-    expect(noSequence.safeHold).toBe(true);
-    expect(noSequence.issues[0]?.code).toBe("MISSING_SEQUENCE");
-    expect(noSequence.records).toEqual([]);
-    expect(badTimestamp.safeHold).toBe(true);
-    expect(badTimestamp.issues[0]?.code).toBe("INVALID_TIMESTAMP");
-    expect(badTimestamp.records).toEqual([]);
+    expect(normalized.safeHold).toBe(false);
+    expect(normalized.records).toEqual([]);
+    expect(normalized.diagnostics[0]?.code).toBe(
+      "IGNORED_UNSUPPORTED_ODDS_MARKET"
+    );
   });
 
-  it("handles action=disconnected without statusId", () => {
-    const score = normalizeScorePayload({
-      fixtureId: "fixture-1",
-      seq: 9,
-      ts: 1_784_140_000,
-      action: "disconnected"
-    });
-    const odds = normalizeOddsPayload({
-      fixtureId: "fixture-1",
-      seq: 10,
-      ts: 1_784_140_001,
-      action: "disconnected"
-    });
-
-    expect(score.disconnected).toBe(true);
-    expect(score.safeHold).toBe(false);
-    expect(score.records).toEqual([]);
-    expect(odds.disconnected).toBe(true);
-    expect(odds.safeHold).toBe(false);
-    expect(odds.records).toEqual([]);
-  });
-
-  it("fails closed when snapshot source time regresses across sequence", () => {
-    const normalized = normalizePayloads(
-      [
-        {
-          FixtureId: 1,
-          Seq: 11,
-          Ts: 1_784_140_200,
-          homeProbability: 0.5,
-          drawProbability: 0.3,
-          awayProbability: 0.2
-        },
-        {
-          FixtureId: 1,
-          Seq: 12,
-          Ts: 1_784_140_100,
-          homeProbability: 0.4,
-          drawProbability: 0.3,
-          awayProbability: 0.3
-        }
-      ],
-      "odds"
+  it("fails closed for malformed fields in a claimed supported market", () => {
+    const normalized = normalizeOddsPayload(
+      officialOdds({ PriceNames: ["1", "X"], Pct: [50, 50] }),
+      { fixture: fixture() }
     );
 
     expect(normalized.safeHold).toBe(true);
     expect(normalized.records).toEqual([]);
-    expect(normalized.issues[0]?.code).toBe("INVALID_ORDERING");
+    expect(normalized.issues[0]?.code).toBe("MALFORMED_SUPPORTED_MARKET");
   });
 
-  it("excludes cancelled fixtures and marks legacy duplicates ambiguous", () => {
+  it("parses nested scoreSoccer and dataSoccer while preserving score seq and ts", () => {
+    const normalized = normalizeScorePayload(officialScore(), {
+      fixture: fixture(false),
+      receivedTimestamp: 1_784_140_101_000
+    });
+
+    expect(normalized.safeHold).toBe(false);
+    expect(normalized.records[0]).toMatchObject({
+      fixtureId: "101",
+      sourceTimestamp: 1_784_140_100_000,
+      provenance: "TXLINE",
+      kind: "event",
+      eventType: "GOAL",
+      team: "AWAY",
+      minute: 49,
+      sourceOrder: {
+        domain: "TXLINE_SCORES",
+        sourceSequence: 41
+      }
+    });
+    expect(normalized.records[0]?.sequence).toBeUndefined();
+  });
+
+  it("hydrates only the latest valid nested score baseline without requiring contiguous history", () => {
+    const normalized = normalizePayloads(
+      [
+        {
+          fixtureId: 101,
+          action: "lineups"
+        },
+        officialScore({
+          action: "period_update",
+          seq: 38,
+          ts: 1_784_140_050,
+          scoreSoccer: {
+            Participant1: { Total: { Goals: 0 } },
+            Participant2: { Total: { Goals: 0 } }
+          }
+        }),
+        officialScore({
+          action: "game_finalised",
+          seq: 44,
+          ts: 1_784_140_300,
+          scoreSoccer: {
+            Participant1: { Total: { Goals: 2 } },
+            Participant2: { Total: { Goals: 1 } }
+          }
+        })
+      ],
+      "scores",
+      { fixture: fixture(false) }
+    );
+
+    expect(normalized.safeHold).toBe(false);
+    expect(normalized.diagnostics[0]?.code).toBe(
+      "IGNORED_UNSUPPORTED_SCORE_ACTION"
+    );
+    expect(normalized.records).toHaveLength(1);
+    expect(normalized.records[0]).toMatchObject({
+      kind: "recovery",
+      sourceOrder: { sourceSequence: 44 },
+      snapshot: { score: { home: 1, away: 2 } }
+    });
+  });
+
+  it("fails closed when a relevant score record lacks seq or has invalid ts", () => {
+    const missingSequence = normalizeScorePayload(
+      officialScore({ seq: undefined }),
+      { fixture: fixture() }
+    );
+    const badTimestamp = normalizeScorePayload(
+      officialScore({ ts: "not-a-time" }),
+      { fixture: fixture() }
+    );
+
+    expect(missingSequence.safeHold).toBe(true);
+    expect(missingSequence.issues[0]?.code).toBe("MISSING_SEQUENCE");
+    expect(badTimestamp.safeHold).toBe(true);
+    expect(badTimestamp.issues[0]?.code).toBe("INVALID_TIMESTAMP");
+  });
+
+  it("handles action=disconnected without statusId", () => {
+    const score = normalizeScorePayload({ action: "disconnected" });
+    const odds = normalizeOddsPayload({ action: "disconnected" });
+
+    expect(score).toMatchObject({ disconnected: true, safeHold: false });
+    expect(odds).toMatchObject({ disconnected: true, safeHold: false });
+  });
+
+  it("excludes cancelled fixtures and marks duplicate legacy fixtures ambiguous", () => {
     const fixtures = normalizeFixtures([
       {
         FixtureId: 1,
         StartTime: "2026-07-15T18:00:00.000Z",
         Participant1: "Alpha",
         Participant2: "Beta",
-        Participant1IsHome: false,
-        GameState: 1
+        Participant1IsHome: true
       },
       {
         FixtureId: 2,
         StartTime: "2026-07-15T18:00:00.000Z",
         Participant1: "Alpha",
         Participant2: "Beta",
-        Participant1IsHome: false
+        Participant1IsHome: true
       },
       {
         FixtureId: 3,
@@ -135,51 +248,9 @@ describe("TxLINE normalizer", () => {
     ]);
 
     expect(fixtures).toHaveLength(2);
-    expect(fixtures[0]).toMatchObject({
-      fixtureId: "1",
-      homeParticipant: "Beta",
-      awayParticipant: "Alpha",
-      selectionState: "SELECTABLE"
-    });
-    expect(fixtures[1]?.selectionState).toBe("AMBIGUOUS");
-    expect(fixtures.some((fixture) => fixture.fixtureId === "3")).toBe(false);
-  });
-
-  it("maps participant probabilities using Participant1IsHome", () => {
-    const fixture = normalizeFixtures([
-      {
-        FixtureId: 1,
-        StartTime: "2026-07-15T18:00:00.000Z",
-        Participant1: "Alpha",
-        Participant2: "Beta",
-        Participant1IsHome: false,
-        GameState: 1
-      }
-    ])[0];
-    expect(fixture).toBeDefined();
-    if (fixture === undefined) {
-      throw new Error("Expected normalized fixture.");
-    }
-
-    const normalized = normalizeOddsPayload(
-      {
-        FixtureId: 1,
-        seq: 5,
-        ts: 1_784_140_000,
-        Participant1Probability: 0.2,
-        DrawProbability: 0.3,
-        Participant2Probability: 0.5
-      },
-      { fixture }
+    expect(fixtures.every((item) => item.selectionState === "AMBIGUOUS")).toBe(
+      true
     );
-
-    expect(normalized.records[0]).toMatchObject({
-      kind: "odds",
-      impliedProbabilities: {
-        homeWin: 0.5,
-        draw: 0.3,
-        awayWin: 0.2
-      }
-    });
+    expect(fixtures.some((item) => item.fixtureId === "3")).toBe(false);
   });
 });
