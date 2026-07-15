@@ -2,23 +2,29 @@ import { pathToFileURL } from "node:url";
 import Fastify, { type FastifyInstance } from "fastify";
 import { registerRoutes } from "./api/routes.js";
 import type { MatchDefinition, ViewerSession } from "./core/types.js";
-import { SYNTHETIC_MATCH } from "./replay/synthetic-scenario.js";
+import { createMatchDataSource } from "./data-source/factory.js";
+import type { MatchDataSource } from "./data-source/types.js";
 
 export interface BuildAppOptions {
   matches?: readonly MatchDefinition[];
+  dataSource?: MatchDataSource;
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({ logger: false });
+  const dataSource =
+    options.dataSource ??
+    createMatchDataSource(options.env ?? process.env);
   const matches = new Map(
-    (options.matches ?? [SYNTHETIC_MATCH]).map((match) => [
+    (options.matches ?? dataSource.getMatches()).map((match) => [
       match.fixtureId,
       match
     ])
   );
   const sessions = new Map<string, ViewerSession>();
 
-  void registerRoutes(app, { matches, sessions });
+  void registerRoutes(app, { matches, sessions, dataSource });
   return app;
 }
 
