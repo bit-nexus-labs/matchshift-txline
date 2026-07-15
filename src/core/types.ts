@@ -4,6 +4,7 @@ export type SessionMode = (typeof SESSION_MODES)[number];
 export type StatusBadge = SessionMode | "SAFE_HOLD";
 export type TeamSide = "HOME" | "AWAY";
 export type Provenance = "SYNTHETIC" | "TXLINE";
+export type SourceOrderDomain = "TXLINE_SCORES" | "TXLINE_ODDS";
 
 export interface Score {
   home: number;
@@ -16,13 +17,24 @@ export interface ImpliedProbabilities {
   awayWin: number;
 }
 
+export interface SourceOrderMetadata {
+  domain: SourceOrderDomain;
+  tieBreaker: string;
+  payloadIdentity: string;
+  sourceSequence?: number;
+  sourceMessageId?: string;
+  sseEventId?: string;
+}
+
 interface BaseMatchRecord {
   fixtureId: string;
   recordId: string;
-  sequence: number;
+  /** Task 01 deterministic ordering. TxLINE records use sourceOrder instead. */
+  sequence?: number;
   sourceTimestamp: number;
   receivedTimestamp: number;
   provenance: Provenance;
+  sourceOrder?: SourceOrderMetadata;
 }
 
 export interface MatchEventRecord extends BaseMatchRecord {
@@ -54,6 +66,7 @@ export interface MatchDefinition {
   provenance: Provenance;
   kickoffTimestamp: number;
   liveEdgeTimestamp: number;
+  /** Synthetic Task 01 prefix baseline only. TxLINE uses per-feed metadata. */
   expectedFirstSequence?: number;
   records: readonly MatchRecord[];
 }
