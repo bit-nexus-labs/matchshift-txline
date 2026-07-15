@@ -10,62 +10,129 @@ export function applySequenceSafetyGate(
   expectedFirstSequence?: number
 ): SafetyGateResult {
   if (visibleRecords.length === 0) {
-    return {
-      trustedRecords: [],
-      status: { active: false }
-    };
+    return { trustedRecords: [], status: { active: false } };
   }
 
   const trustedRecords: MatchRecord[] = [];
-  let expectedSequence = expectedFirstSequence;
-  let holdReason: string | undefined;
-  let blockedFromSequence: number | undefined;
-  let recoveredAtSequence: number | undefined;
+  let expectedSyntheticSequence = expectedFirstSequence;
+  let expectedScoreSequence: number | undefined;
+  let syntheticHoldReason: string | undefined;
+  let syntheticBlockedFrom: number | undefined;
+  let syntheticRecoveredAt: number | undefined;
+  let scoreHoldReason: string | undefined;
+  let scoreBlockedFrom: number | undefined;
+  let scoreRecoveredAt: number | undefined;
 
   for (const record of visibleRecords) {
-    if (expectedSequence === undefined) {
+    if (record.sourceOrder?.domain === "TXLINE_ODDS") {
       trustedRecords.push(record);
-      expectedSequence = record.sequence + 1;
       continue;
     }
 
-    if (holdReason !== undefined) {
+    if (record.sourceOrder?.domain === "TXLINE_SCORES") {
+      const sourceSequence = record.sourceOrder.sourceSequence;
+      if (sourceSequence === undefined) {
+        scoreHoldReason = "TxLINE score record had no observed source sequence.";
+        continue;
+      }
+
+      if (scoreHoldReason !== undefined) {
+        if (record.kind === "recovery") {
+          trustedRecords.push(record);
+          expectedScoreSequence = sourceSequence + 1;
+          scoreRecoveredAt = sourceSequence;
+          scoreHoldReason = undefined;
+          scoreBlockedFrom = undefined;
+        }
+        continue;
+      }
+
+      if (expectedScoreSequence === undefined) {
+        if (record.kind === "recovery") {
+          trustedRecords.push(record);
+          expectedScoreSequence = sourceSequence + 1;
+        } else {
+          scoreHoldReason = "TxLINE score stream has no trusted snapshot baseline.";
+          scoreBlockedFrom = sourceSequence;
+        }
+        continue;
+      }
+
+      if (sourceSequence === expectedScoreSequence) {
+        trustedRecords.push(record);
+        expectedScoreSequence += 1;
+        continue;
+      }
+
       if (record.kind === "recovery") {
         trustedRecords.push(record);
-        expectedSequence = record.sequence + 1;
-        recoveredAtSequence = record.sequence;
-        holdReason = undefined;
-        blockedFromSequence = undefined;
+        expectedScoreSequence = sourceSequence + 1;
+        scoreRecoveredAt = sourceSequence;
+        continue;
+      }
+
+      scoreBlockedFrom = expectedScoreSequence;
+      scoreHoldReason =
+        sourceSequence > expectedScoreSequence
+          ? `TxLINE score sequence gap: expected ${expectedScoreSequence}, received ${sourceSequence}`
+          : `Out-of-order or duplicate TxLINE score sequence: expected ${expectedScoreSequence}, received ${sourceSequence}`;
+      continue;
+    }
+
+    const sequence = record.sequence;
+    if (sequence === undefined) {
+      syntheticHoldReason = "Synthetic record had no deterministic sequence.";
+      continue;
+    }
+
+    if (expectedSyntheticSequence === undefined) {
+      trustedRecords.push(record);
+      expectedSyntheticSequence = sequence + 1;
+      continue;
+    }
+
+    if (syntheticHoldReason !== undefined) {
+      if (record.kind === "recovery") {
+        trustedRecords.push(record);
+        expectedSyntheticSequence = sequence + 1;
+        syntheticRecoveredAt = sequence;
+        syntheticHoldReason = undefined;
+        syntheticBlockedFrom = undefined;
       }
       continue;
     }
 
-    if (record.sequence === expectedSequence) {
+    if (sequence === expectedSyntheticSequence) {
       trustedRecords.push(record);
-      expectedSequence += 1;
+      expectedSyntheticSequence += 1;
       continue;
     }
 
     if (record.kind === "recovery") {
       trustedRecords.push(record);
-      expectedSequence = record.sequence + 1;
-      recoveredAtSequence = record.sequence;
+      expectedSyntheticSequence = sequence + 1;
+      syntheticRecoveredAt = sequence;
       continue;
     }
 
-    blockedFromSequence = expectedSequence;
-    holdReason =
-      record.sequence > expectedSequence
-        ? `Sequence gap: expected ${expectedSequence}, received ${record.sequence}`
-        : `Out-of-order or duplicate sequence: expected ${expectedSequence}, received ${record.sequence}`;
+    syntheticBlockedFrom = expectedSyntheticSequence;
+    syntheticHoldReason =
+      sequence > expectedSyntheticSequence
+        ? `Sequence gap: expected ${expectedSyntheticSequence}, received ${sequence}`
+        : `Out-of-order or duplicate sequence: expected ${expectedSyntheticSequence}, received ${sequence}`;
   }
 
-  if (holdReason !== undefined) {
+  const reason = scoreHoldReason ?? syntheticHoldReason;
+  const blockedFromSequence =
+    scoreHoldReason === undefined ? syntheticBlockedFrom : scoreBlockedFrom;
+  const recoveredAtSequence = scoreRecoveredAt ?? syntheticRecoveredAt;
+
+  if (reason !== undefined) {
     return {
       trustedRecords,
       status: {
         active: true,
-        reason: holdReason,
+        reason,
         ...(blockedFromSequence === undefined ? {} : { blockedFromSequence }),
         ...(recoveredAtSequence === undefined ? {} : { recoveredAtSequence })
       }

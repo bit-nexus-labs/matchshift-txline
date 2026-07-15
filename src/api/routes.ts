@@ -6,11 +6,13 @@ import {
   transitionSession
 } from "../core/session-machine.js";
 import type { MatchDefinition, ViewerSession } from "../core/types.js";
+import type { MatchDataSource } from "../data-source/types.js";
 import { createSessionSchema, sessionCommandSchema } from "./schemas.js";
 
 interface RouteOptions {
   matches: ReadonlyMap<string, MatchDefinition>;
   sessions: Map<string, ViewerSession>;
+  dataSource: MatchDataSource;
 }
 
 function invalidRequest(reply: FastifyReply, issues: unknown): void {
@@ -25,6 +27,13 @@ export async function registerRoutes(
   options: RouteOptions
 ): Promise<void> {
   app.get("/health", async () => ({ status: "ok" }));
+  app.get("/api/data-source/status", async () => options.dataSource.getStatus());
+  const findMatch = (fixtureId: string): MatchDefinition | undefined =>
+    options.matches.get(fixtureId) ??
+    options.dataSource
+      .getMatches()
+      .find((match) => match.fixtureId === fixtureId);
+
 
   app.post("/api/sessions", async (request, reply) => {
     const parsed = createSessionSchema.safeParse(request.body);
@@ -33,7 +42,7 @@ export async function registerRoutes(
       return;
     }
 
-    const match = options.matches.get(parsed.data.fixtureId);
+    const match = findMatch(parsed.data.fixtureId);
     if (match === undefined) {
       await reply.status(404).send({ error: "FIXTURE_NOT_FOUND" });
       return;
@@ -66,7 +75,7 @@ export async function registerRoutes(
         return;
       }
 
-      const match = options.matches.get(session.fixtureId);
+      const match = findMatch(session.fixtureId);
       if (match === undefined) {
         await reply.status(404).send({ error: "FIXTURE_NOT_FOUND" });
         return;
@@ -91,7 +100,7 @@ export async function registerRoutes(
         return;
       }
 
-      const match = options.matches.get(session.fixtureId);
+      const match = findMatch(session.fixtureId);
       if (match === undefined) {
         await reply.status(404).send({ error: "FIXTURE_NOT_FOUND" });
         return;

@@ -10,10 +10,15 @@ import type {
 } from "./types.js";
 import { effectiveVisibilityCursor, recordsVisibleAtCursor } from "./visibility.js";
 
-function toVisibleEvent(record: MatchEventRecord): VisibleEvent {
+function toVisibleEvent(record: MatchEventRecord): VisibleEvent | undefined {
+  const sequence = record.sequence ?? record.sourceOrder?.sourceSequence;
+  if (sequence === undefined) {
+    return undefined;
+  }
+
   return {
     eventId: record.recordId,
-    sequence: record.sequence,
+    sequence,
     sourceTimestamp: record.sourceTimestamp,
     eventType: record.eventType,
     minute: record.minute,
@@ -64,7 +69,11 @@ export function deriveVisibleMatchState(
         score = { ...score, away: score.away + 1 };
       }
     }
-    events.push(toVisibleEvent(record));
+
+    const visibleEvent = toVisibleEvent(record);
+    if (visibleEvent !== undefined) {
+      events.push(visibleEvent);
+    }
   }
 
   const latestEvent = events.at(-1);
