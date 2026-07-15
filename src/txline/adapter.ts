@@ -1,4 +1,5 @@
 import type { MatchDefinition, MatchRecord } from "../core/types.js";
+import { compareMatchRecords } from "../core/visibility.js";
 import type {
   DataSourceStatus,
   MatchDataSource
@@ -17,7 +18,8 @@ import {
   normalizePayloads,
   normalizeScorePayload,
   type NormalizedFixture,
-  type NormalizeRecordOptions
+  type NormalizeRecordOptions,
+  type NormalizationResult
 } from "./normalizer.js";
 import { sanitizedErrorMessage } from "./redaction.js";
 import { readSseFrames } from "./sse-parser.js";
@@ -35,10 +37,7 @@ export interface TxlineClient {
     fixtureId: string | number,
     signal?: AbortSignal
   ): Promise<unknown>;
-  openStream(
-    kind: TxlineStreamKind,
-    signal?: AbortSignal
-  ): Promise<Response>;
+  openStream(kind: TxlineStreamKind, signal?: AbortSignal): Promise<Response>;
 }
 
 export interface TxlineAdapterConfig extends TxlineRuntimeConfig {
@@ -60,6 +59,26 @@ export interface RunStreamOptions {
   signal?: AbortSignal;
   maxReconnectAttempts?: number;
   onRecord?: (record: MatchRecord) => void | Promise<void>;
+}
+
+interface StreamPosition {
+  latestScoreSequence?: number;
+  latestScoreTimestamp?: number;
+  identities: Set<string>;
+}
+
+type TrackDisposition =
+  | "ACCEPT"
+  | "DUPLICATE"
+  | "INVALID"
+  | "GAP"
+  | "NEEDS_BASELINE";
+
+class SnapshotRecoveryRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SnapshotRecoveryRequiredError";
+  }
 }
 
 function sleepWithSignal(
@@ -97,6 +116,39 @@ export function computeReconnectDelay(
   return Math.max(1, Math.min(maxMs, Math.floor(ceiling * jitterFactor)));
 }
 
+function recordIdentity(record: MatchRecord): string {
+  const sourceOrder = record.sourceOrder;
+  return sourceOrder === undefined
+    ? [
+        "SYNTHETIC",
+        record.fixtureId,
+        record.recordId,
+        record.sequence ?? "",
+        record.sourceTimestamp,
+        record.kind
+      ].join("|")
+    : [
+        sourceOrder.domain,
+        record.fixtureId,
+        sourceOrder.sourceMessageId ?? record.recordId,
+        sourceOrder.sseEventId ?? "",
+        record.sourceTimestamp,
+        sourceOrder.payloadIdentity,
+        record.kind
+      ].join("|");
+}
+
+function mergeRecords(
+  existing: readonly MatchRecord[],
+  incoming: readonly MatchRecord[]
+): MatchRecord[] {
+  const merged = new Map<string, MatchRecord>();
+  for (const record of [...existing, ...incoming]) {
+    merged.set(recordIdentity(record), record);
+  }
+  return [...merged.values()].sort(compareMatchRecords);
+}
+
 export class TxlineAdapter implements MatchDataSource {
   readonly mode: TxlineNetwork;
   readonly #config: TxlineAdapterConfig;
@@ -110,10 +162,10 @@ export class TxlineAdapter implements MatchDataSource {
   #status: DataSourceStatus;
   #matches: MatchDefinition[] = [];
   #fixtures = new Map<string, NormalizedFixture>();
-  #streamPositions = new Map<
-    string,
-    { sequence: number; sourceTimestamp: number; recordId: string }
-  >();
+  #streamPositions = new Map<string, StreamPosition>();
+  #selected:
+    | { fixtureId: string; competitionId?: string | number }
+    | undefined;
 
   constructor(options: TxlineAdapterOptions) {
     this.#config = options.config;
@@ -170,101 +222,7 @@ export class TxlineAdapter implements MatchDataSource {
     competitionId?: string | number,
     signal?: AbortSignal
   ): Promise<MatchDefinition> {
-    const client = this.requireClient();
-    this.setStatus("CONNECTING", "Fetching TxLINE fixture snapshot.");
-    const fixturePayload = await this.withRequestStatus(() =>
-      client.fetchFixturesSnapshot(competitionId, signal)
-    );
-    const fixtures = normalizeFixtures(fixturePayload);
-    this.#fixtures = new Map(
-      fixtures.map((fixture) => [fixture.fixtureId, fixture])
-    );
-    const fixture = this.#fixtures.get(fixtureId);
-    if (fixture === undefined) {
-      this.setStatus(
-        "SAFE_HOLD",
-        "Selected fixture is unavailable, cancelled, or invalid."
-      );
-      throw new TxlineHttpError(
-        "FIXTURE_NOT_AVAILABLE",
-        "Selected TxLINE fixture is unavailable."
-      );
-    }
-    if (fixture.selectionState === "AMBIGUOUS") {
-      this.setStatus(
-        "SAFE_HOLD",
-        "Selected fixture is an ambiguous legacy duplicate."
-      );
-      throw new TxlineHttpError(
-        "AMBIGUOUS_FIXTURE",
-        "Selected TxLINE fixture is ambiguous."
-      );
-    }
-
-    const [oddsPayload, scoresPayload] = await this.withRequestStatus(() =>
-      Promise.all([
-        client.fetchOddsSnapshot(fixture.fixtureId, signal),
-        client.fetchScoresSnapshot(fixture.fixtureId, signal)
-      ])
-    );
-    const normalizationOptions = {
-      fixture,
-      receivedTimestamp: this.#now()
-    };
-    const odds = normalizePayloads(
-      oddsPayload,
-      "odds",
-      normalizationOptions
-    );
-    const scores = normalizePayloads(
-      scoresPayload,
-      "scores",
-      normalizationOptions
-    );
-    for (const record of odds.records) {
-      this.trackRecord("odds", record);
-    }
-    for (const record of scores.records) {
-      this.trackRecord("scores", record);
-    }
-
-    const records = [...odds.records, ...scores.records].sort(
-      (left, right) =>
-        left.sequence - right.sequence ||
-        left.sourceTimestamp - right.sourceTimestamp
-    );
-    const uncertain =
-      odds.safeHold ||
-      scores.safeHold ||
-      odds.issues.length > 0 ||
-      scores.issues.length > 0 ||
-      records.length === 0;
-    const expectedFirstSequence =
-      records.length === 0
-        ? undefined
-        : Math.min(...records.map((record) => record.sequence));
-    const match: MatchDefinition = {
-      fixtureId: fixture.fixtureId,
-      label: `${fixture.homeParticipant} vs ${fixture.awayParticipant} (TxLINE ${this.mode})`,
-      provenance: "TXLINE",
-      kickoffTimestamp: fixture.startTimestamp,
-      liveEdgeTimestamp:
-        records.length === 0
-          ? Math.min(this.#now(), fixture.startTimestamp)
-          : Math.max(...records.map((record) => record.sourceTimestamp)),
-      ...(expectedFirstSequence === undefined
-        ? {}
-        : { expectedFirstSequence }),
-      records
-    };
-    this.#matches = [match];
-    this.setStatus(
-      uncertain ? "SAFE_HOLD" : "SNAPSHOT_READY",
-      uncertain
-        ? "Snapshot contained uncertain ordering, timestamps, or unsupported records."
-        : "TxLINE snapshots hydrated for the selected fixture."
-    );
-    return match;
+    return this.hydrateFixture(fixtureId, competitionId, signal, false);
   }
 
   async runStream(
@@ -272,13 +230,43 @@ export class TxlineAdapter implements MatchDataSource {
     options: RunStreamOptions
   ): Promise<void> {
     const client = this.requireClient();
+    if (this.#selected?.fixtureId !== options.fixtureId) {
+      this.setStatus(
+        "SAFE_HOLD",
+        "TxLINE snapshot hydration is required before SSE streaming."
+      );
+      return;
+    }
+
     const maximumReconnects = options.maxReconnectAttempts ?? Infinity;
     let reconnectAttempt = 0;
     let retryHint: number | undefined;
+    let needsHydration = false;
 
     while (!isAborted(options.signal)) {
       let sawData = false;
       try {
+        if (needsHydration) {
+          const selected = this.#selected;
+          if (selected === undefined || selected.fixtureId !== options.fixtureId) {
+            this.setStatus(
+              "SAFE_HOLD",
+              "TxLINE stream recovery has no selected fixture baseline."
+            );
+            return;
+          }
+          await this.hydrateFixture(
+            selected.fixtureId,
+            selected.competitionId,
+            options.signal,
+            true
+          );
+          needsHydration = false;
+          if (this.#status.state === "SAFE_HOLD") {
+            return;
+          }
+        }
+
         this.setStatus("CONNECTING", `Connecting to TxLINE ${kind} stream.`);
         const response = await client.openStream(kind, options.signal);
         if (response.body === null) {
@@ -288,10 +276,7 @@ export class TxlineAdapter implements MatchDataSource {
           );
         }
 
-        for await (const frame of readSseFrames(
-          response.body,
-          options.signal
-        )) {
+        for await (const frame of readSseFrames(response.body, options.signal)) {
           if (frame.kind === "heartbeat") {
             this.#status = {
               ...this.#status,
@@ -337,18 +322,21 @@ export class TxlineAdapter implements MatchDataSource {
                 ? normalizeOddsPayload(item, recordOptions)
                 : normalizeScorePayload(item, recordOptions);
             if (normalized.disconnected) {
-              throw new TxlineHttpError(
-                "DISCONNECTED",
+              needsHydration = true;
+              throw new SnapshotRecoveryRequiredError(
                 "TxLINE reported a disconnected feed action."
               );
             }
             if (normalized.safeHold || normalized.issues.length > 0) {
               this.setStatus(
                 "SAFE_HOLD",
-                "TxLINE stream ordering or timestamp could not be trusted."
+                kind === "scores"
+                  ? "Relevant TxLINE score fields could not be trusted."
+                  : "Claimed TxLINE match-winner fields could not be trusted."
               );
               return;
             }
+
             for (const record of normalized.records) {
               if (record.fixtureId !== options.fixtureId) {
                 continue;
@@ -360,10 +348,19 @@ export class TxlineAdapter implements MatchDataSource {
               if (disposition === "INVALID") {
                 this.setStatus(
                   "SAFE_HOLD",
-                  "TxLINE stream sequence or source timestamp regressed."
+                  "TxLINE source ordering regressed or was internally inconsistent."
                 );
                 return;
               }
+              if (disposition === "GAP" || disposition === "NEEDS_BASELINE") {
+                needsHydration = true;
+                throw new SnapshotRecoveryRequiredError(
+                  disposition === "GAP"
+                    ? "TxLINE score sequence gap detected; snapshot recovery is required."
+                    : "TxLINE score stream has no trusted snapshot baseline."
+                );
+              }
+
               sawData = true;
               this.appendRecord(record);
               await options.onRecord?.(record);
@@ -380,14 +377,13 @@ export class TxlineAdapter implements MatchDataSource {
         if (isAborted(options.signal)) {
           return;
         }
-        if (!sawData) {
-          this.setStatus(
-            "IDLE_NO_COVERAGE",
-            "TxLINE stream ended without covered data messages."
-          );
-        } else {
-          this.setStatus("STALE", "TxLINE stream ended; reconnect is pending.");
-        }
+        needsHydration = true;
+        this.setStatus(
+          sawData ? "STALE" : "IDLE_NO_COVERAGE",
+          sawData
+            ? "TxLINE stream ended; reconnect and snapshot recovery are pending."
+            : "TxLINE stream ended without covered data messages."
+        );
       } catch (error) {
         if (
           isAborted(options.signal) ||
@@ -399,13 +395,18 @@ export class TxlineAdapter implements MatchDataSource {
           this.setStatus("CONFIG_ERROR", error.message);
           return;
         }
-        const sanitized = this.sanitize(error);
-        this.setStatus(
-          "STALE",
-          sanitized === ""
-            ? "TxLINE stream failed; reconnect is pending."
-            : sanitized
-        );
+        if (error instanceof SnapshotRecoveryRequiredError) {
+          this.setStatus("SAFE_HOLD", error.message);
+        } else {
+          const sanitized = this.sanitize(error);
+          this.setStatus(
+            "STALE",
+            sanitized === ""
+              ? "TxLINE stream failed; reconnect is pending."
+              : sanitized
+          );
+          needsHydration = true;
+        }
       }
 
       if (reconnectAttempt >= maximumReconnects) {
@@ -429,9 +430,129 @@ export class TxlineAdapter implements MatchDataSource {
     }
   }
 
-  private async withRequestStatus<T>(
-    request: () => Promise<T>
-  ): Promise<T> {
+  private async hydrateFixture(
+    fixtureId: string,
+    competitionId: string | number | undefined,
+    signal: AbortSignal | undefined,
+    preserveHistory: boolean
+  ): Promise<MatchDefinition> {
+    const client = this.requireClient();
+    const previous = this.#matches.find((match) => match.fixtureId === fixtureId);
+    this.setStatus("CONNECTING", "Fetching TxLINE fixture snapshot.");
+    const fixturePayload = await this.withRequestStatus(() =>
+      client.fetchFixturesSnapshot(competitionId, signal)
+    );
+    const fixtures = normalizeFixtures(fixturePayload);
+    this.#fixtures = new Map(
+      fixtures.map((fixture) => [fixture.fixtureId, fixture])
+    );
+    const fixture = this.#fixtures.get(fixtureId);
+    if (fixture === undefined) {
+      this.setStatus(
+        "SAFE_HOLD",
+        "Selected fixture is unavailable, cancelled, or invalid."
+      );
+      throw new TxlineHttpError(
+        "FIXTURE_NOT_AVAILABLE",
+        "Selected TxLINE fixture is unavailable."
+      );
+    }
+    if (fixture.selectionState === "AMBIGUOUS") {
+      this.setStatus(
+        "SAFE_HOLD",
+        "Selected fixture is an ambiguous legacy duplicate."
+      );
+      throw new TxlineHttpError(
+        "AMBIGUOUS_FIXTURE",
+        "Selected TxLINE fixture is ambiguous."
+      );
+    }
+
+    const [oddsPayload, scoresPayload] = await this.withRequestStatus(() =>
+      Promise.all([
+        client.fetchOddsSnapshot(fixture.fixtureId, signal),
+        client.fetchScoresSnapshot(fixture.fixtureId, signal)
+      ])
+    );
+    const normalizationOptions = {
+      fixture,
+      receivedTimestamp: this.#now()
+    };
+    const odds = normalizePayloads(oddsPayload, "odds", normalizationOptions);
+    const scores = normalizePayloads(
+      scoresPayload,
+      "scores",
+      normalizationOptions
+    );
+    const uncertain = this.isUncertain(odds) || this.isUncertain(scores);
+    if (uncertain) {
+      if (preserveHistory && previous !== undefined) {
+        this.#matches = [previous];
+      }
+      this.setStatus(
+        "SAFE_HOLD",
+        "A claimed supported TxLINE snapshot payload could not be trusted."
+      );
+      return previous ?? this.emptyMatch(fixture);
+    }
+
+    this.clearFixturePositions(fixture.fixtureId);
+    for (const record of odds.records) {
+      this.trackRecord("odds", record, true);
+    }
+    for (const record of scores.records) {
+      this.trackRecord("scores", record, true);
+    }
+
+    const snapshotRecords = [...odds.records, ...scores.records].sort(
+      compareMatchRecords
+    );
+    const records =
+      preserveHistory && previous !== undefined
+        ? mergeRecords(previous.records, snapshotRecords)
+        : snapshotRecords;
+    const match: MatchDefinition = {
+      fixtureId: fixture.fixtureId,
+      label: `${fixture.homeParticipant} vs ${fixture.awayParticipant} (TxLINE ${this.mode})`,
+      provenance: "TXLINE",
+      kickoffTimestamp: fixture.startTimestamp,
+      liveEdgeTimestamp:
+        records.length === 0
+          ? Math.min(this.#now(), fixture.startTimestamp)
+          : Math.max(...records.map((record) => record.sourceTimestamp)),
+      records
+    };
+    this.#matches = [match];
+    this.#selected =
+      competitionId === undefined
+        ? { fixtureId: fixture.fixtureId }
+        : { fixtureId: fixture.fixtureId, competitionId };
+
+    this.setStatus(
+      records.length === 0 ? "IDLE_NO_COVERAGE" : "SNAPSHOT_READY",
+      records.length === 0
+        ? "TxLINE snapshots contained no supported score or match-winner data."
+        : "Independent TxLINE score and odds snapshots are ready."
+    );
+    return match;
+  }
+
+  private emptyMatch(fixture: NormalizedFixture): MatchDefinition {
+    return {
+      fixtureId: fixture.fixtureId,
+      label: `${fixture.homeParticipant} vs ${fixture.awayParticipant} (TxLINE ${this.mode})`,
+      provenance: "TXLINE",
+      kickoffTimestamp: fixture.startTimestamp,
+      liveEdgeTimestamp: Math.min(this.#now(), fixture.startTimestamp),
+      records: []
+    };
+  }
+
+  private isUncertain(result: NormalizationResult): boolean {
+    return result.safeHold || result.issues.length > 0;
+  }
+
+  private async withRequestStatus<T>(request: () => Promise<T>): Promise<T> {
     try {
       return await request();
     } catch (error) {
@@ -445,9 +566,7 @@ export class TxlineAdapter implements MatchDataSource {
       const message = this.sanitize(error);
       this.setStatus(
         "STALE",
-        message === ""
-          ? "TxLINE snapshot request failed."
-          : message
+        message === "" ? "TxLINE snapshot request failed." : message
       );
       throw error;
     }
@@ -455,37 +574,77 @@ export class TxlineAdapter implements MatchDataSource {
 
   private trackRecord(
     kind: TxlineStreamKind,
-    record: MatchRecord
-  ): "ACCEPT" | "DUPLICATE" | "INVALID" {
+    record: MatchRecord,
+    snapshot = false
+  ): TrackDisposition {
+    const sourceOrder = record.sourceOrder;
+    const expectedDomain =
+      kind === "scores" ? "TXLINE_SCORES" : "TXLINE_ODDS";
+    if (sourceOrder === undefined || sourceOrder.domain !== expectedDomain) {
+      return "INVALID";
+    }
+
     const key = `${kind}:${record.fixtureId}`;
+    const identity = recordIdentity(record);
     const previous = this.#streamPositions.get(key);
+    if (previous?.identities.has(identity) === true) {
+      return "DUPLICATE";
+    }
+
+    if (kind === "odds") {
+      if (previous === undefined) {
+        this.#streamPositions.set(key, {
+          identities: new Set([identity])
+        });
+      } else {
+        previous.identities.add(identity);
+      }
+      return "ACCEPT";
+    }
+
+    const sourceSequence = sourceOrder.sourceSequence;
+    if (sourceSequence === undefined) {
+      return "INVALID";
+    }
     if (previous === undefined) {
+      if (!snapshot) {
+        return "NEEDS_BASELINE";
+      }
       this.#streamPositions.set(key, {
-        sequence: record.sequence,
-        sourceTimestamp: record.sourceTimestamp,
-        recordId: record.recordId
+        latestScoreSequence: sourceSequence,
+        latestScoreTimestamp: record.sourceTimestamp,
+        identities: new Set([identity])
       });
       return "ACCEPT";
     }
-    if (
-      record.sequence === previous.sequence &&
-      record.sourceTimestamp === previous.sourceTimestamp &&
-      record.recordId === previous.recordId
-    ) {
-      return "DUPLICATE";
+
+    const previousSequence = previous.latestScoreSequence;
+    const previousTimestamp = previous.latestScoreTimestamp;
+    if (previousSequence === undefined || previousTimestamp === undefined) {
+      return "INVALID";
     }
     if (
-      record.sequence <= previous.sequence ||
-      record.sourceTimestamp < previous.sourceTimestamp
+      sourceSequence <= previousSequence ||
+      record.sourceTimestamp < previousTimestamp
     ) {
       return "INVALID";
     }
-    this.#streamPositions.set(key, {
-      sequence: record.sequence,
-      sourceTimestamp: record.sourceTimestamp,
-      recordId: record.recordId
-    });
+    if (!snapshot && sourceSequence > previousSequence + 1) {
+      return "GAP";
+    }
+
+    previous.latestScoreSequence = sourceSequence;
+    previous.latestScoreTimestamp = record.sourceTimestamp;
+    previous.identities.add(identity);
     return "ACCEPT";
+  }
+
+  private clearFixturePositions(fixtureId: string): void {
+    for (const key of [...this.#streamPositions.keys()]) {
+      if (key.endsWith(`:${fixtureId}`)) {
+        this.#streamPositions.delete(key);
+      }
+    }
   }
 
   private sanitize(value: unknown): string {
@@ -524,7 +683,7 @@ export class TxlineAdapter implements MatchDataSource {
               match.liveEdgeTimestamp,
               record.sourceTimestamp
             ),
-            records: [...match.records, record]
+            records: mergeRecords(match.records, [record])
           }
         : match
     );
