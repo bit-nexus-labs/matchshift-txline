@@ -14,8 +14,9 @@ The deterministic synthetic replay is the guaranteed judge path. An optional bac
 | Mocked TxLINE snapshots and SSE | Implemented and tested without network access |
 | TxLINE devnet/mainnet transport | Implemented; requires external token/subscription and is not live-smoke-tested here |
 | Official odds and nested score normalization | Implemented with independent feed-ordering domains |
-| Data-source status endpoint | Implemented with sanitized metadata |
-| Deployment, wallet proof, rewards, betting | Not implemented yet |
+| Deterministic visibility receipts | Implemented; explicitly not a provider signature or on-chain proof |
+| Production container and CI health smoke | Implemented; public HTTPS deployment pending |
+| Wallet proof, rewards, betting | Not implemented |
 
 The server does not make a TxLINE request merely because it starts. Synthetic mode requires no credentials. Tests and CI use mocks only and never contact TxLINE.
 
@@ -69,6 +70,14 @@ Read only one viewer's safe state:
 ```http
 GET /api/sessions/:sessionId/state
 ```
+
+Request a deterministic receipt for that already-derived visible state:
+
+```http
+GET /api/sessions/:sessionId/receipt
+```
+
+The receipt is a SHA-256 state fingerprint. It is not a provider signature, settlement proof, source-data proof, or on-chain proof.
 
 Advance one viewer's cursor:
 
@@ -176,14 +185,30 @@ The included `SYNTHETIC` scenario contains kickoff, pre-goal odds, a home goal a
 
 ## Verification
 
-GitHub Actions runs the same frozen install, typecheck, test, and build flow on Node.js 22. Tests cover:
+GitHub Actions runs frozen install, typecheck, tests, and build on Node.js 22. A second job builds the production Docker image, starts it in synthetic mode, and smoke-tests `/health`.
+
+Tests cover:
 
 - the original Task 01 no-future-data boundaries;
 - official TxLINE odds and nested score shapes;
 - independent score and odds ordering domains;
 - JWT refresh, `403` stop, SSE parsing, reconnect, heartbeat, and redaction;
 - judge page security headers and embedded script syntax;
-- demo bootstrap isolation and timestamp-by-timestamp reveal.
+- demo bootstrap isolation and timestamp-by-timestamp reveal;
+- deterministic visibility receipts and delayed-session isolation.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Deployment runbook](docs/DEPLOYMENT.md)
+- [Judge demo runbook](docs/JUDGE_DEMO_RUNBOOK.md)
+- [Visibility receipts](docs/VISIBILITY_RECEIPTS.md)
+- [Submission draft](docs/SUBMISSION_DRAFT.md)
+- [Compliance checklist](docs/COMPLIANCE_CHECKLIST.md)
+- [Human authorship](docs/HUMAN_AUTHORSHIP.md)
+- [Test evidence](docs/TEST_EVIDENCE.md)
+- [Security policy](SECURITY.md)
 
 ## Official references
 
@@ -200,5 +225,6 @@ GitHub Actions runs the same frozen install, typecheck, test, and build flow on 
 - The repository contains no live TxLINE credential and makes no real TxLINE call in tests or CI.
 - Devnet/mainnet behavior is verified with deterministic HTTP/SSE mocks, not a live subscription.
 - Only an unambiguous full-match `1X2` market is normalized for the MatchShift demo.
-- There is no persistence, user authentication, rate limiting, wallet flow, blockchain validation, rewards logic, betting flow, or deployment configuration yet.
+- The reviewed container exists, but a public HTTPS deployment URL has not been created yet.
+- There is no persistence, user authentication, rate limiting, wallet flow, blockchain validation, rewards logic, or betting flow.
 - Judge-facing live fixture activation and stream lifecycle orchestration remain future integration work; synthetic replay remains the guaranteed no-auth demo path.
