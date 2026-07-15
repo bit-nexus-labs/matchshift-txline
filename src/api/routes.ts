@@ -10,6 +10,7 @@ import type {
   SessionMode,
   ViewerSession
 } from "../core/types.js";
+import { createVisibilityReceipt } from "../core/visibility-receipt.js";
 import type { MatchDataSource } from "../data-source/types.js";
 import {
   SYNTHETIC_FIXTURE_ID,
@@ -170,6 +171,29 @@ export async function registerRoutes(
       }
 
       return deriveVisibleMatchState(match, session);
+    }
+  );
+
+  app.get<{ Params: { sessionId: string } }>(
+    "/api/sessions/:sessionId/receipt",
+    async (request, reply) => {
+      const session = options.sessions.get(request.params.sessionId);
+      if (session === undefined) {
+        await reply.status(404).send({ error: "SESSION_NOT_FOUND" });
+        return;
+      }
+
+      const match = findMatch(session.fixtureId);
+      if (match === undefined) {
+        await reply.status(404).send({ error: "FIXTURE_NOT_FOUND" });
+        return;
+      }
+
+      const state = deriveVisibleMatchState(match, session);
+      await reply.header("Cache-Control", "no-store").send({
+        receipt: createVisibilityReceipt(state),
+        note: "Deterministic state receipt; not a provider signature or on-chain proof."
+      });
     }
   );
 
