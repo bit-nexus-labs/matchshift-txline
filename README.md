@@ -1,27 +1,30 @@
-# MatchShift TxLINE adapter
+# MatchShift — spoiler-safe personal match timelines
 
-MatchShift is a server-side, spoiler-safe personal sports timeline core. The deterministic synthetic proof remains the default data source. An optional backend-only TxLINE adapter adds documented fixture, odds, score, and SSE support without coupling credentials or raw provider payloads to the timeline engine.
+MatchShift lets football viewers follow live match data at their own viewing pace. The server exposes only the score, events, odds context, and explanation that existed at each session's personal cursor.
+
+The deterministic synthetic replay is the guaranteed judge path. An optional backend-only TxLINE adapter supports documented fixture, odds, score, and SSE data without coupling credentials or raw provider payloads to the timeline engine.
 
 ## Milestone status
 
 | Area | Status |
 | --- | --- |
 | Spoiler-safe personal timeline core | Implemented and tested |
-| Deterministic synthetic data source | Implemented; default mode |
+| One-click judge comparison console | Implemented; no login, wallet, payment, or external account |
+| Deterministic synthetic data source | Implemented; default judge mode |
 | Mocked TxLINE snapshots and SSE | Implemented and tested without network access |
-| TxLINE devnet/mainnet transport | Implemented; requires an external API token/subscription and has not been live-smoke-tested in this repository |
+| TxLINE devnet/mainnet transport | Implemented; requires external token/subscription and is not live-smoke-tested here |
 | Official odds and nested score normalization | Implemented with independent feed-ordering domains |
 | Data-source status endpoint | Implemented with sanitized metadata |
-| UI, wallet, blockchain proof, rewards, betting, deployment | Not implemented in Task 02 |
+| Deployment, wallet proof, rewards, betting | Not implemented yet |
 
 The server does not make a TxLINE request merely because it starts. Synthetic mode requires no credentials. Tests and CI use mocks only and never contact TxLINE.
 
-## Requirements
+## Run the judge demo
+
+Requirements:
 
 - Node.js 22 or newer
 - pnpm 11.7.0
-
-## Install and verify
 
 ```bash
 pnpm install --frozen-lockfile
@@ -31,7 +34,55 @@ pnpm build
 pnpm start
 ```
 
-CI runs the same install, typecheck, test, and build flow on Node.js 22.
+Open `http://127.0.0.1:3000` and press **Start spoiler-safe demo**.
+
+The page creates two independent server-side sessions for the same synthetic match:
+
+- **Live edge** sees the 49th-minute goal, `1-0`, and post-goal probabilities.
+- **Personal timeline** starts at minute 43 and receives `0-0`, no goal, and only pre-goal probabilities.
+
+Move the personal cursor to minute 49 to reveal the goal. Move ten seconds further to reveal the updated probabilities. The UI also exposes pause, resume, one-minute advance, and catch-up controls.
+
+The page is a comparison console: both panels are visible to the judge, but each panel is rendered from its own session-derived state. The raw record collection is never returned. The delayed session response itself contains no future goal identifiers, future odds identifiers, or future probability values.
+
+The demo page is self-contained, uses no external assets, and is served with a restrictive Content Security Policy.
+
+## Judge/demo API
+
+Start two isolated demo sessions:
+
+```http
+POST /api/demo/start
+Content-Type: application/json
+
+{}
+```
+
+List sanitized fixture metadata:
+
+```http
+GET /api/fixtures
+```
+
+Read only one viewer's safe state:
+
+```http
+GET /api/sessions/:sessionId/state
+```
+
+Advance one viewer's cursor:
+
+```http
+PATCH /api/sessions/:sessionId
+Content-Type: application/json
+
+{
+  "type": "ADVANCE_TO",
+  "cursorMs": 1784141350000
+}
+```
+
+The API never returns the complete raw match record collection. Every viewer state is rebuilt from records at or before that viewer's effective cursor and then passed through the appropriate safety gate.
 
 ## Data-source configuration
 
@@ -86,7 +137,7 @@ Goal side and minute are read from documented `dataSoccer` participant/minute fi
 
 ## Independent ordering domains
 
-Synthetic Task 01 records retain their deterministic contiguous `sequence` domain.
+Synthetic records retain their deterministic contiguous `sequence` domain.
 
 TxLINE uses separate source-ordering domains:
 
@@ -97,30 +148,11 @@ Odds and scores are never passed through one mixed global sequence gate. Combine
 
 The adapter hydrates snapshots before streaming. After a disconnect, stream end, or score gap, it rehydrates snapshots before trusting subsequent score events. Prior timestamped records are retained so delayed viewers remain spoiler-safe.
 
-## Adapter behavior
-
-The adapter supports:
-
-- fixture snapshots and one selected fixture;
-- cancellation exclusion for `GameState=6`;
-- ambiguous legacy duplicate detection when `GameState` is missing;
-- official nested score recovery snapshots;
-- official `1X2` odds snapshots and SSE records without `Seq`;
-- fragmented SSE chunks, CRLF/LF, comments, `event`, `id`, `retry`, and multi-line `data`;
-- heartbeat-only `IDLE_NO_COVERAGE`, never a false `LIVE`;
-- bounded exponential reconnect delay with jitter and abort support;
-- exact duplicate detection based on fixture, source identifiers, timestamp, and payload identity;
-- sanitized `SAFE_HOLD`, `STALE`, and `CONFIG_ERROR` states.
-
-## API
-
-Health:
+## Data-source health
 
 ```http
 GET /health
 ```
-
-Sanitized data-source status:
 
 ```http
 GET /api/data-source/status
@@ -138,42 +170,20 @@ Typical synthetic response:
 
 The status route never returns the API token, guest JWT, authorization headers, or raw provider payloads.
 
-Create a delayed synthetic viewer:
-
-```http
-POST /api/sessions
-Content-Type: application/json
-
-{
-  "fixtureId": "synthetic-matchshift-001",
-  "mode": "DELAYED",
-  "visibilityCursor": 1784140980000
-}
-```
-
-Read only that viewer's safe state:
-
-```http
-GET /api/sessions/:sessionId/state
-```
-
-Advance the cursor:
-
-```http
-PATCH /api/sessions/:sessionId
-Content-Type: application/json
-
-{
-  "type": "ADVANCE_TO",
-  "cursorMs": 1784141350000
-}
-```
-
-The API never returns the raw match record collection. Every viewer state is rebuilt from records at or before that viewer's effective cursor and passed through the appropriate safety gate. Judges can run the synthetic proof with no login, wallet, TxLINE account, or external credential.
-
 ## Synthetic proof timeline
 
 The included `SYNTHETIC` scenario contains kickoff, pre-goal odds, a home goal at minute 49, and post-goal odds ten seconds later. A viewer at minute 52 sees the goal, `1-0`, and post-goal odds. A viewer at minute 43 sees `0-0`, no goal, and only pre-goal odds.
+
+## Verification
+
+GitHub Actions runs the same frozen install, typecheck, test, and build flow on Node.js 22. Tests cover:
+
+- the original Task 01 no-future-data boundaries;
+- official TxLINE odds and nested score shapes;
+- independent score and odds ordering domains;
+- JWT refresh, `403` stop, SSE parsing, reconnect, heartbeat, and redaction;
+- judge page security headers and embedded script syntax;
+- demo bootstrap isolation and timestamp-by-timestamp reveal.
 
 ## Official references
 
@@ -190,5 +200,5 @@ The included `SYNTHETIC` scenario contains kickoff, pre-goal odds, a home goal a
 - The repository contains no live TxLINE credential and makes no real TxLINE call in tests or CI.
 - Devnet/mainnet behavior is verified with deterministic HTTP/SSE mocks, not a live subscription.
 - Only an unambiguous full-match `1X2` market is normalized for the MatchShift demo.
-- There is no persistence, user authentication, rate limiting, UI, wallet flow, blockchain validation, rewards logic, betting flow, or deployment configuration in Task 02.
+- There is no persistence, user authentication, rate limiting, wallet flow, blockchain validation, rewards logic, betting flow, or deployment configuration yet.
 - Judge-facing live fixture activation and stream lifecycle orchestration remain future integration work; synthetic replay remains the guaranteed no-auth demo path.

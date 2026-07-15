@@ -5,8 +5,17 @@ import {
   createViewerSession,
   transitionSession
 } from "../core/session-machine.js";
-import type { MatchDefinition, ViewerSession } from "../core/types.js";
+import type {
+  MatchDefinition,
+  SessionMode,
+  ViewerSession
+} from "../core/types.js";
 import type { MatchDataSource } from "../data-source/types.js";
+import {
+  SYNTHETIC_FIXTURE_ID,
+  SYNTHETIC_MATCH
+} from "../replay/synthetic-scenario.js";
+import { DEMO_PAGE_HTML } from "../ui/demo-page.js";
 import { createSessionSchema, sessionCommandSchema } from "./schemas.js";
 
 interface RouteOptions {
@@ -22,18 +31,95 @@ function invalidRequest(reply: FastifyReply, issues: unknown): void {
   });
 }
 
+function publicFixture(match: MatchDefinition) {
+  return {
+    fixtureId: match.fixtureId,
+    label: match.label,
+    provenance: match.provenance
+  };
+}
+
+function createSessionPayload(
+  match: MatchDefinition,
+  mode: SessionMode,
+  visibilityCursor?: number
+) {
+  const session = createViewerSession({
+    sessionId: randomUUID(),
+    fixtureId: match.fixtureId,
+    mode,
+    liveEdgeTimestamp: match.liveEdgeTimestamp,
+    ...(visibilityCursor === undefined ? {} : { visibilityCursor })
+  });
+  return {
+    session,
+    state: deriveVisibleMatchState(match, session)
+  };
+}
+
 export async function registerRoutes(
   app: FastifyInstance,
   options: RouteOptions
 ): Promise<void> {
+  const findMatch = (fixtureId: string): MatchDefinition | undefined =>
+    fixtureId === SYNTHETIC_FIXTURE_ID
+      ? SYNTHETIC_MATCH
+      : options.matches.get(fixtureId) ??
+        options.dataSource
+          .getMatches()
+          .find((match) => match.fixtureId === fixtureId);
+
+  app.get("/", async (_request, reply) => {
+    await reply
+      .header(
+        "Content-Security-Policy",
+        "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+      )
+      .header("X-Content-Type-Options", "nosniff")
+      .header("Referrer-Policy", "no-referrer")
+      .header("Cache-Control", "no-store")
+      .type("text/html; charset=utf-8")
+      .send(DEMO_PAGE_HTML);
+  });
+
   app.get("/health", async () => ({ status: "ok" }));
   app.get("/api/data-source/status", async () => options.dataSource.getStatus());
-  const findMatch = (fixtureId: string): MatchDefinition | undefined =>
-    options.matches.get(fixtureId) ??
-    options.dataSource
-      .getMatches()
-      .find((match) => match.fixtureId === fixtureId);
 
+  app.get("/api/fixtures", async () => {
+    const fixtures = new Map<string, MatchDefinition>();
+    fixtures.set(SYNTHETIC_MATCH.fixtureId, SYNTHETIC_MATCH);
+    for (const match of options.matches.values()) {
+      fixtures.set(match.fixtureId, match);
+    }
+    for (const match of options.dataSource.getMatches()) {
+      fixtures.set(match.fixtureId, match);
+    }
+    return {
+      fixtures: [...fixtures.values()].map(publicFixture)
+    };
+  });
+
+  app.post("/api/demo/start", async (_request, reply) => {
+    const match = SYNTHETIC_MATCH;
+    const delayedCursor = match.kickoffTimestamp + 43 * 60_000;
+    const live = createSessionPayload(match, "LIVE");
+    const personal = createSessionPayload(match, "DELAYED", delayedCursor);
+    options.sessions.set(live.session.sessionId, live.session);
+    options.sessions.set(personal.session.sessionId, personal.session);
+
+    await reply.status(201).send({
+      fixture: {
+        ...publicFixture(match),
+        kickoffTimestamp: match.kickoffTimestamp,
+        liveEdgeTimestamp: match.liveEdgeTimestamp,
+        maxMinute: Math.floor(
+          (match.liveEdgeTimestamp - match.kickoffTimestamp) / 60_000
+        )
+      },
+      live,
+      personal
+    });
+  });
 
   app.post("/api/sessions", async (request, reply) => {
     const parsed = createSessionSchema.safeParse(request.body);
@@ -56,7 +142,9 @@ export async function registerRoutes(
       ...(parsed.data.visibilityCursor === undefined
         ? {}
         : { visibilityCursor: parsed.data.visibilityCursor }),
-      ...(parsed.data.delayMs === undefined ? {} : { delayMs: parsed.data.delayMs })
+      ...(parsed.data.delayMs === undefined
+        ? {}
+        : { delayMs: parsed.data.delayMs })
     });
     options.sessions.set(session.sessionId, session);
 
