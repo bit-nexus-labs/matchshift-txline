@@ -3,7 +3,7 @@ export const SESSION_MODES = ["LIVE", "DELAYED", "PAUSED", "REPLAY"] as const;
 export type SessionMode = (typeof SESSION_MODES)[number];
 export type StatusBadge = SessionMode | "SAFE_HOLD";
 export type TeamSide = "HOME" | "AWAY";
-export type Provenance = "SYNTHETIC";
+export type Provenance = "SYNTHETIC" | "TXLINE";
 
 export interface Score {
   home: number;
