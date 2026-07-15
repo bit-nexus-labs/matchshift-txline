@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/server.js";
 import { T0 } from "../src/replay/synthetic-scenario.js";
+import { DEMO_PAGE_HTML } from "../src/ui/demo-page.js";
 
 let app: FastifyInstance | undefined;
 
@@ -13,6 +14,12 @@ afterEach(async () => {
 });
 
 describe("judge-facing demo", () => {
+  it("contains syntactically valid embedded JavaScript", () => {
+    const match = DEMO_PAGE_HTML.match(/<script>([\s\S]*?)<\/script>/);
+    expect(match?.[1]).toBeDefined();
+    expect(() => new Function(match?.[1] ?? "")).not.toThrow();
+  });
+
   it("serves a self-contained no-auth page with security headers", async () => {
     app = buildApp();
 
@@ -60,6 +67,9 @@ describe("judge-facing demo", () => {
     expect(response.statusCode).toBe(201);
     const body = response.json<{
       fixture: {
+        fixtureId: string;
+        label: string;
+        provenance: string;
         kickoffTimestamp: number;
         liveEdgeTimestamp: number;
         maxMinute: number;
