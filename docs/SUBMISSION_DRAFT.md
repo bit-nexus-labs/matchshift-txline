@@ -102,6 +102,14 @@ TxLINE / deterministic replay
 - No third-party account
 - No external data dependency
 
+## Public deployment
+
+- Public demo: https://matchshift-txline.onrender.com
+- Health check: https://matchshift-txline.onrender.com/health
+- Initial deployed source: `55ffa7cf6a398f50b466dd5be9fa8d9db59bac22`
+- Deployment mode: `TXLINE_MODE=synthetic`
+- Deployment receipt: [`PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md`](PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md)
+
 ## Built during the hackathon
 
 The public repository contains the MatchShift-specific core, TxLINE adapter, tests, judge UI, container configuration, and documentation developed for this hackathon.
@@ -127,7 +135,7 @@ No private trading bot source, exchange secrets, raw TxLINE exports, or copied c
 ## Suggested submission links
 
 - Repository: `https://github.com/bit-nexus-labs/matchshift-txline`
-- Public demo: `<ADD AFTER DEPLOYMENT>`
+- Public demo: `https://matchshift-txline.onrender.com`
 - Demo video: `<ADD AFTER RECORDING>`
 
 ## Suggested short pitch
