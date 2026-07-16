@@ -4,6 +4,12 @@ MatchShift lets football viewers follow live match data at their own viewing pac
 
 The deterministic synthetic replay is the guaranteed judge path. An optional backend-only TxLINE adapter supports documented fixture, odds, score, and SSE data without coupling credentials or raw provider payloads to the timeline engine.
 
+## Live judge demo
+
+- App: https://matchshift-txline.onrender.com
+- Health: https://matchshift-txline.onrender.com/health
+- No login, wallet, payment, subscription, or external account is required.
+
 ## Milestone status
 
 | Area | Status |
@@ -15,7 +21,7 @@ The deterministic synthetic replay is the guaranteed judge path. An optional bac
 | TxLINE devnet/mainnet transport | Implemented; requires external token/subscription and is not live-smoke-tested here |
 | Official odds and nested score normalization | Implemented with independent feed-ordering domains |
 | Deterministic visibility receipts | Implemented; explicitly not a provider signature or on-chain proof |
-| Production container and CI health smoke | Implemented; public HTTPS deployment pending |
+| Production container and CI health smoke | Implemented; public HTTPS deployment live on Render |
 | Wallet proof, rewards, betting | Not implemented |
 
 The server does not make a TxLINE request merely because it starts. Synthetic mode requires no credentials. Tests and CI use mocks only and never contact TxLINE.
@@ -202,6 +208,7 @@ Tests cover:
 - [Documentation index](docs/README.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Deployment runbook](docs/DEPLOYMENT.md)
+- [Public deployment receipt](docs/PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md)
 - [Judge demo runbook](docs/JUDGE_DEMO_RUNBOOK.md)
 - [Visibility receipts](docs/VISIBILITY_RECEIPTS.md)
 - [Submission draft](docs/SUBMISSION_DRAFT.md)
@@ -218,13 +225,3 @@ Tests cover:
 - [TxLINE streaming examples](https://txline.txodds.com/documentation/examples/streaming-data)
 - [Official txodds/tx-on-chain examples](https://github.com/txodds/tx-on-chain/tree/main/examples)
 - [Hackathon terms](https://txline.txodds.com/documentation/legal/hackathon-terms)
-
-## Known limitations
-
-- Sessions and hydrated matches are in memory and disappear on restart.
-- The repository contains no live TxLINE credential and makes no real TxLINE call in tests or CI.
-- Devnet/mainnet behavior is verified with deterministic HTTP/SSE mocks, not a live subscription.
-- Only an unambiguous full-match `1X2` market is normalized for the MatchShift demo.
-- The reviewed container exists, but a public HTTPS deployment URL has not been created yet.
-- There is no persistence, user authentication, rate limiting, wallet flow, blockchain validation, rewards logic, or betting flow.
-- Judge-facing live fixture activation and stream lifecycle orchestration remain future integration work; synthetic replay remains the guaranteed no-auth demo path.
