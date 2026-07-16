@@ -2,6 +2,17 @@
 
 This runbook prepares the judge-facing synthetic demo for a public HTTPS host. It does not activate TxLINE, connect a wallet, or require secrets.
 
+## Current public deployment
+
+- Application: https://matchshift-txline.onrender.com
+- Health check: https://matchshift-txline.onrender.com/health
+- Platform: Render Web Service
+- Runtime: repository Dockerfile
+- Mode: `TXLINE_MODE=synthetic`
+- Health path: `/health`
+- Initial deployed source: `55ffa7cf6a398f50b466dd5be9fa8d9db59bac22`
+- Evidence: [`PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md`](PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md)
+
 ## Deployment target
 
 The deployed service must support:
@@ -95,9 +106,9 @@ Then confirm:
 After deployment, test from a private/incognito browser window with no existing login:
 
 ```text
-https://<public-host>/
-https://<public-host>/health
-https://<public-host>/api/data-source/status
+https://matchshift-txline.onrender.com/
+https://matchshift-txline.onrender.com/health
+https://matchshift-txline.onrender.com/api/data-source/status
 ```
 
 The demo must work without:
@@ -108,6 +119,17 @@ The demo must work without:
 - buying a token or subscription;
 - entering an email address;
 - enabling third-party cookies.
+
+## Free-host availability plan
+
+The public service currently uses a free Render instance. Before final submission:
+
+1. verify one genuine cold start after the service has slept;
+2. activate an external HTTP check against `/health` at an interval shorter than the idle timeout;
+3. keep the monitor active through the judging period;
+4. retain the option to move the same service to a paid always-on instance if free-host behavior becomes unreliable.
+
+Do not rely on an untested monitoring configuration as the only evidence that the judge URL is available.
 
 ## Rollback
 
