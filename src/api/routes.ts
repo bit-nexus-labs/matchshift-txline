@@ -19,6 +19,23 @@ import {
 import { DEMO_PAGE_HTML } from "../ui/demo-page.js";
 import { createSessionSchema, sessionCommandSchema } from "./schemas.js";
 
+const viewerTimeScript = [
+  "        var viewerTime = model.fixture",
+  "          ? minuteLabel((session.visibilityCursor - model.fixture.kickoffTimestamp) / 60000)",
+  "          : String(state.session.viewerMinute).padStart(2, \"0\") + \":00\";",
+  "        el[prefix + \"-minute\"].textContent = \"Viewer time \" + viewerTime;"
+].join("\n");
+
+const JUDGE_DEMO_PAGE_HTML = DEMO_PAGE_HTML
+  .replace(
+    "one at the live edge and one six minutes behind",
+    "one at the live edge and one at an earlier personal cursor"
+  )
+  .replace(
+    '        el[prefix + "-minute"].textContent = "Viewer minute " + state.session.viewerMinute;',
+    viewerTimeScript
+  );
+
 interface RouteOptions {
   matches: ReadonlyMap<string, MatchDefinition>;
   sessions: Map<string, ViewerSession>;
@@ -80,7 +97,7 @@ export async function registerRoutes(
       .header("Referrer-Policy", "no-referrer")
       .header("Cache-Control", "no-store")
       .type("text/html; charset=utf-8")
-      .send(DEMO_PAGE_HTML);
+      .send(JUDGE_DEMO_PAGE_HTML);
   });
 
   app.get("/health", async () => ({ status: "ok" }));
