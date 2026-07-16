@@ -33,6 +33,9 @@ describe("judge-facing demo", () => {
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
     expect(response.body).toContain("Watch on your time");
     expect(response.body).toContain("Start spoiler-safe demo");
+    expect(response.body).toContain("one at an earlier personal cursor");
+    expect(response.body).toContain("Viewer time");
+    expect(response.body).not.toContain("six minutes behind");
     expect(response.body).not.toContain("synthetic-home-goal-49");
     expect(response.body).not.toContain("TXLINE_API_TOKEN");
   });
