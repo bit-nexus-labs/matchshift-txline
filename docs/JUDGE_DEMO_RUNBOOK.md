@@ -2,6 +2,11 @@
 
 Target duration: 60–90 seconds.
 
+## Public judge URL
+
+- App: https://matchshift-txline.onrender.com
+- Health: https://matchshift-txline.onrender.com/health
+
 ## Before recording or judging
 
 1. Open the public HTTPS URL in a private/incognito window.
@@ -9,6 +14,9 @@ Target duration: 60–90 seconds.
 3. Confirm the top-right source label says the synthetic judge replay is ready.
 4. Keep browser zoom at 100% and use a viewport at least 1280 pixels wide when possible.
 5. Start from a fresh page load.
+6. Confirm `/health` returns `{"status":"ok"}` before recording.
+
+The narration may be recorded in Ukrainian with accurate English subtitles. Keep all visible labels, title cards, and submission text in English.
 
 ## Demo sequence
 
@@ -86,6 +94,15 @@ A judge should be able to complete the proof without narration:
 3. Drag Viewer B from minute 43 to minute 49.
 4. Move ten seconds further.
 5. Press **Reset demo** and repeat.
+
+## Recording checklist
+
+- Keep the cursor visible while moving between `43:00`, `49:00`, and `49:10`.
+- Avoid showing browser bookmarks, personal tabs, accounts, tokens, or Render configuration.
+- Capture the public URL at least once.
+- Include English subtitles when narration is not in English.
+- Export a readable 1080p video when possible.
+- Verify the uploaded video from a logged-out or private browser window.
 
 ## Failure recovery
 
