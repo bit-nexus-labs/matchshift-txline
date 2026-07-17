@@ -1,15 +1,16 @@
 name: Apply smoke assertion fix
 
 on:
-  push:
+  pull_request:
     branches:
-      - txline/integration-smoke-20260717
+      - main
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: github.head_ref == 'txline/integration-smoke-20260717'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
