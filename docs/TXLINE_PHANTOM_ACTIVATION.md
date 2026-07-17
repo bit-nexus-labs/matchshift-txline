@@ -15,7 +15,7 @@ The helper:
 5. derives the official pricing-matrix, treasury, and Token-2022 associated-token accounts;
 6. estimates the network fee and possible token-account rent before signing;
 7. asks Phantom to sign the transaction only after an explicit browser confirmation;
-8. simulates the signed transaction before broadcasting it;
+8. simulates the signed transaction through the official Solana JSON-RPC method before broadcasting it;
 9. requests a guest JWT from the matching mainnet host;
 10. asks the same Phantom wallet to sign the exact standard-bundle activation message `${txSig}::${jwt}`;
 11. activates and displays the API token once without writing it to disk or browser storage.
