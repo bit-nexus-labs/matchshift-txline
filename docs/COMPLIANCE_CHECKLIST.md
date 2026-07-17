@@ -20,7 +20,7 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] The guaranteed judge path requires no external account or login.
 - [x] The synthetic judge path is deterministic and does not depend on live fixture coverage.
 - [x] A public HTTPS demo URL is added before submission.
-- [ ] The public URL is tested in an incognito/private browser.
+- [x] The public URL is tested end to end in an incognito/private browser.
 
 ## Branding and claims
 
@@ -30,6 +30,14 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] Visibility receipts are described as deterministic state hashes, not provider signatures or on-chain proofs.
 - [ ] The final video repeats the synthetic/mock/private-evidence/live distinctions accurately.
 - [ ] Submission screenshots contain no restricted branding.
+
+## Commercial path
+
+- [x] The submission identifies the initial paying customers: streaming, broadcasting, sports-media, and fan-platform operators.
+- [x] The product is stated as a white-label B2B API/SDK rather than an unsupported traction claim.
+- [x] The planned revenue model states recurring platform licensing plus usage-based pricing.
+- [x] A later optional direct-to-consumer premium path is distinguished from the free judge experience.
+- [ ] The final video repeats the customer, product, and revenue model in one concise statement.
 
 ## TxLINE data handling
 
