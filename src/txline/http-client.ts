@@ -63,6 +63,20 @@ function createRequestContext(
   };
 }
 
+function addOptionalQuery(
+  path: string,
+  values: Readonly<Record<string, string | number | undefined>>
+): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const serialized = query.toString();
+  return serialized === "" ? path : `${path}?${serialized}`;
+}
+
 export class TxlineHttpClient {
   readonly #apiOrigin: string;
   readonly #requestTimeoutMs: number;
@@ -84,12 +98,24 @@ export class TxlineHttpClient {
     competitionId?: string | number,
     signal?: AbortSignal
   ): Promise<unknown> {
-    const query =
-      competitionId === undefined
-        ? ""
-        : `?competitionId=${encodeURIComponent(String(competitionId))}`;
     const response = await this.request(
-      `/api/fixtures/snapshot${query}`,
+      addOptionalQuery("/api/fixtures/snapshot", { competitionId }),
+      "application/json",
+      signal
+    );
+    return this.readJson(response);
+  }
+
+  async fetchFixturesSnapshotForDay(
+    startEpochDay: number,
+    competitionId?: string | number,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const response = await this.request(
+      addOptionalQuery("/api/fixtures/snapshot", {
+        startEpochDay,
+        competitionId
+      }),
       "application/json",
       signal
     );
@@ -108,12 +134,37 @@ export class TxlineHttpClient {
     return this.readJson(response);
   }
 
+  async fetchOddsSnapshotAt(
+    fixtureId: string | number,
+    asOf: number,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const path = addOptionalQuery(
+      `/api/odds/snapshot/${encodeURIComponent(String(fixtureId))}`,
+      { asOf }
+    );
+    const response = await this.request(path, "application/json", signal);
+    return this.readJson(response);
+  }
+
   async fetchScoresSnapshot(
     fixtureId: string | number,
     signal?: AbortSignal
   ): Promise<unknown> {
     const response = await this.request(
       `/api/scores/snapshot/${encodeURIComponent(String(fixtureId))}`,
+      "application/json",
+      signal
+    );
+    return this.readJson(response);
+  }
+
+  async fetchScoresHistorical(
+    fixtureId: string | number,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const response = await this.request(
+      `/api/scores/historical/${encodeURIComponent(String(fixtureId))}`,
       "application/json",
       signal
     );
