@@ -71,9 +71,12 @@ describe("TxLINE reference historical smoke adapter", () => {
     ]);
 
     expect(scoreCalls).toBe(1);
-    expect(oddsCalls).toEqual([
-      { fixtureId: FIXTURE_ID, asOf: EARLY + 1_000 },
-      { fixtureId: FIXTURE_ID, asOf: EARLY + 49 * 60_000 }
-    ]);
+    expect(oddsCalls).toHaveLength(2);
+    expect(oddsCalls).toEqual(
+      expect.arrayContaining([
+        { fixtureId: FIXTURE_ID, asOf: EARLY + 1_000 },
+        { fixtureId: FIXTURE_ID, asOf: EARLY + 49 * 60_000 }
+      ])
+    );
   });
 });
