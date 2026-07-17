@@ -234,7 +234,7 @@ export class TxlineHttpClient {
         await response.body?.cancel();
         throw new TxlineHttpError(
           "HTTP_ERROR",
-          `TxLINE request failed with status ${status}.",
+          `TxLINE request failed with status ${status}.`,
           status
         );
       }
