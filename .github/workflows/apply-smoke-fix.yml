@@ -1,0 +1,66 @@
+name: Apply smoke assertion fix
+
+on:
+  push:
+    branches:
+      - txline/integration-smoke-20260717
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: txline/integration-smoke-20260717
+          fetch-depth: 0
+      - name: Apply exact event isolation assertion
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/txline/smoke.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '''  const futureEventIds = futureRecords
+            .filter((record) => record.kind === "event")
+            .map((record) => record.recordId);
+          const serializedEarlyState = JSON.stringify(earlyState);
+
+          if (
+            earlyRecords.some((record) => record.sourceTimestamp > earlyCursor) ||
+            futureRecords.length === 0 ||
+            futureEventIds.some((eventId) => serializedEarlyState.includes(eventId)) ||
+            earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
+          ) {'''
+          new = '''  const futureEventIds = new Set(
+            futureRecords
+              .filter((record) => record.kind === "event")
+              .map((record) => record.recordId)
+          );
+          const earlyVisibleEventIds = new Set(
+            earlyState.events.map((event) => event.eventId)
+          );
+
+          if (
+            earlyRecords.some((record) => record.sourceTimestamp > earlyCursor) ||
+            earlyState.events.some((event) => event.sourceTimestamp > earlyCursor) ||
+            futureRecords.length === 0 ||
+            [...futureEventIds].some((eventId) => earlyVisibleEventIds.has(eventId)) ||
+            earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
+          ) {'''
+          if text.count(old) != 1:
+              raise SystemExit('Expected smoke assertion block exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          Path('.github/workflows/apply-smoke-fix.yml').unlink()
+          PY
+      - name: Commit smoke assertion fix
+        shell: bash
+        run: |
+          git config user.name "bit-nexus-labs"
+          git config user.email "289002433+bit-nexus-labs@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix exact future-event isolation assertion"
+          git push origin HEAD:txline/integration-smoke-20260717
