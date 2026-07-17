@@ -26,49 +26,36 @@ jobs:
           path = Path('src/txline/live-observer.ts')
           text = path.read_text(encoding='utf-8')
 
-          text = text.replace(
-              '): NormalizedFixture {\n  const selectable = fixtures.filter(',
-              '): NormalizedFixture | undefined {\n  const selectable = fixtures.filter(',
-              1,
-          )
+          old_return_type = '): NormalizedFixture {\n  const selectable = fixtures.filter('
+          new_return_type = '): NormalizedFixture | undefined {\n  const selectable = fixtures.filter('
+          if text.count(old_return_type) != 1:
+              raise SystemExit('Expected selectFixture return type exactly once')
+          text = text.replace(old_return_type, new_return_type)
 
-          old_no_candidate = '''  if (candidate === undefined) {
-            throw new LiveObserverError(
-              "NO_LIVE_CANDIDATE",
-              "No selectable fixture was found inside the configured live observation window."
-            );
-          }
-          return candidate;'''
-          new_no_candidate = '''  return candidate;'''
-          if text.count(old_no_candidate) != 1:
-              raise SystemExit('Expected no-candidate block exactly once')
-          text = text.replace(old_no_candidate, new_no_candidate)
+          select_start = text.find('function selectFixture(')
+          block_start = text.find('  if (candidate === undefined) {', select_start)
+          return_start = text.find('  return candidate;', block_start)
+          if select_start < 0 or block_start < 0 or return_start < 0:
+              raise SystemExit('No-candidate markers were not found')
+          text = text[:block_start] + text[return_start:]
 
-          text = text.replace(
-              '  status: "PASS" | "NOT_OBSERVED";\n  commitSha: string;',
-              '  status: "PASS" | "NOT_OBSERVED";\n  baselineReady: boolean;\n  commitSha: string;',
-              1,
-          )
-          text = text.replace(
-              '    "Fixture baseline: PASS",',
-              '    `Fixture baseline: ${input.baselineReady ? "PASS" : "NOT RUN"}`,',
-              1,
-          )
+          old_interface = '  status: "PASS" | "NOT_OBSERVED";\n  commitSha: string;'
+          new_interface = '  status: "PASS" | "NOT_OBSERVED";\n  baselineReady: boolean;\n  commitSha: string;'
+          if text.count(old_interface) != 1:
+              raise SystemExit('Expected receipt input interface exactly once')
+          text = text.replace(old_interface, new_interface)
 
-          fixture_marker = '''  const fixture = selectFixture(
-            fixtures,
-            now,
-            fixtureWindowHours,
-            options.fixtureId
-          );
+          old_baseline = '    "Fixture baseline: PASS",'
+          new_baseline = '    `Fixture baseline: ${input.baselineReady ? "PASS" : "NOT RUN"}`,'
+          if text.count(old_baseline) != 1:
+              raise SystemExit('Expected fixed baseline receipt line exactly once')
+          text = text.replace(old_baseline, new_baseline)
 
-          const controller = new AbortController();'''
-          fixture_replacement = '''  const fixture = selectFixture(
-            fixtures,
-            now,
-            fixtureWindowHours,
-            options.fixtureId
-          );
+          fixture_call = text.find('  const fixture = selectFixture(')
+          controller_marker = text.find('\n\n  const controller = new AbortController();', fixture_call)
+          if fixture_call < 0 or controller_marker < 0:
+              raise SystemExit('Fixture/controller insertion markers were not found')
+          no_candidate = '''
           if (fixture === undefined) {
             const receipt = renderLiveObserverReceipt({
               network: options.network,
@@ -79,25 +66,14 @@ jobs:
             });
             validateLiveObserverReceipt(receipt);
             return { status: "NOT_OBSERVED", receipt };
-          }
+          }'''
+          text = text[:controller_marker] + no_candidate + text[controller_marker:]
 
-          const controller = new AbortController();'''
-          if text.count(fixture_marker) != 1:
-              raise SystemExit('Expected fixture selection marker exactly once')
-          text = text.replace(fixture_marker, fixture_replacement)
-
-          receipt_marker = '''  const receipt = renderLiveObserverReceipt({
-            network: options.network,
-            status,
-            commitSha: resolveCommitSha(options.commitSha),'''
-          receipt_replacement = '''  const receipt = renderLiveObserverReceipt({
-            network: options.network,
-            status,
-            baselineReady: true,
-            commitSha: resolveCommitSha(options.commitSha),'''
-          if text.count(receipt_marker) != 1:
-              raise SystemExit('Expected receipt marker exactly once')
-          text = text.replace(receipt_marker, receipt_replacement)
+          old_receipt_call = '    status,\n    commitSha: resolveCommitSha(options.commitSha),'
+          new_receipt_call = '    status,\n    baselineReady: true,\n    commitSha: resolveCommitSha(options.commitSha),'
+          if text.count(old_receipt_call) != 1:
+              raise SystemExit('Expected normal receipt call exactly once')
+          text = text.replace(old_receipt_call, new_receipt_call)
 
           path.write_text(text, encoding='utf-8')
           Path('.github/workflows/apply-live-no-candidate-fix.yml').unlink()
