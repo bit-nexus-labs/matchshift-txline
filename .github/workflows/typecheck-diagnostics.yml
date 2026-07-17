@@ -1,4 +1,4 @@
-name: Typecheck diagnostics
+name: Integration diagnostics
 
 on:
   pull_request:
@@ -13,18 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Capture TypeScript diagnostics
+      - name: Capture verification diagnostics
         shell: bash
         run: |
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
           pnpm install --frozen-lockfile --reporter=silent
           pnpm typecheck > typecheck.log 2>&1 || true
+          pnpm test > test.log 2>&1 || true
           tail -80 typecheck.log
-      - name: Upload TypeScript diagnostics
+          tail -160 test.log
+      - name: Upload verification diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: typecheck-diagnostics
-          path: typecheck.log
+          name: integration-diagnostics
+          path: |
+            typecheck.log
+            test.log
           if-no-files-found: error
           retention-days: 1
