@@ -29,7 +29,7 @@ describe("TxLINE historical odds shape probe", () => {
         JSON.stringify({ Ts: 2000 }),
         { Ts: 3000 }
       ])
-    ).toEqual([1000, 2000, 3000]);
+    ).toEqual([1_000_000, 2_000_000, 3_000_000]);
   });
 
   it("probes early and late odds snapshots without exposing provider values", async () => {
