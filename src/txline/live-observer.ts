@@ -198,7 +198,7 @@ export async function observeLiveInput(
     fixtureWindowHours,
     options.fixtureId
   );
-if (fixture === undefined) {
+  if (fixture === undefined) {
   const receipt = renderLiveObserverReceipt({
     network: options.network,
     status: "NOT_OBSERVED",
