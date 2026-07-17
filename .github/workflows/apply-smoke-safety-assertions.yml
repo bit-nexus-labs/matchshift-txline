@@ -1,0 +1,48 @@
+name: Apply smoke safety assertions
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'txline/integration-smoke-20260717'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: txline/integration-smoke-20260717
+          fetch-depth: 0
+      - name: Strengthen smoke assertions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/txline/smoke.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '''    futureRecords.length === 0 ||
+              [...futureEventIds].some((eventId) => earlyVisibleEventIds.has(eventId)) ||
+              earlyState.session.visibilityCursor >= liveState.session.visibilityCursor'''
+          new = '''    futureRecords.length === 0 ||
+              earlyState.safety.active ||
+              liveState.safety.active ||
+              [...futureEventIds].some((eventId) => earlyVisibleEventIds.has(eventId)) ||
+              earlyState.session.visibilityCursor >= liveState.session.visibilityCursor'''
+          if text.count(old) != 1:
+              raise SystemExit('Expected smoke condition fragment exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          Path('.github/workflows/apply-smoke-safety-assertions.yml').unlink()
+          PY
+      - name: Commit safety assertions
+        shell: bash
+        run: |
+          git config user.name "bit-nexus-labs"
+          git config user.email "289002433+bit-nexus-labs@users.noreply.github.com"
+          git add -A
+          git commit -m "Require trusted states in TxLINE smoke"
+          git push origin HEAD:txline/integration-smoke-20260717
