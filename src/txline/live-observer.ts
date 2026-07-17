@@ -67,7 +67,7 @@ function selectFixture(
   now: number,
   fixtureWindowHours: number,
   requestedFixtureId?: string
-): NormalizedFixture {
+): NormalizedFixture | undefined {
   const selectable = fixtures.filter(
     (fixture) => fixture.selectionState === "SELECTABLE"
   );
@@ -99,12 +99,6 @@ function selectFixture(
       );
     })[0];
 
-  if (candidate === undefined) {
-    throw new LiveObserverError(
-      "NO_LIVE_CANDIDATE",
-      "No selectable fixture was found inside the configured live observation window."
-    );
-  }
   return candidate;
 }
 
@@ -125,6 +119,7 @@ function resolveCommitSha(explicit?: string): string {
 export function renderLiveObserverReceipt(input: {
   network: TxlineNetwork;
   status: "PASS" | "NOT_OBSERVED";
+  baselineReady: boolean;
   commitSha: string;
   verifiedAt: string;
 }): string {
@@ -133,7 +128,7 @@ export function renderLiveObserverReceipt(input: {
     `TXLINE LIVE INPUT OBSERVER: ${pass ? "PASS" : "NOT OBSERVED"}`,
     "",
     `Network: ${input.network}`,
-    "Fixture baseline: PASS",
+    `Fixture baseline: ${input.baselineReady ? "PASS" : "NOT RUN"}`,
     `SSE data record observed: ${pass ? "PASS" : "NO"}`,
     `Heartbeat-only accepted as proof: NO`,
     `Production normalizer: ${pass ? "PASS" : "NOT VERIFIED"}`,
@@ -203,6 +198,17 @@ export async function observeLiveInput(
     fixtureWindowHours,
     options.fixtureId
   );
+if (fixture === undefined) {
+  const receipt = renderLiveObserverReceipt({
+    network: options.network,
+    status: "NOT_OBSERVED",
+    baselineReady: false,
+    commitSha: resolveCommitSha(options.commitSha),
+    verifiedAt: new Date(now).toISOString()
+  });
+  validateLiveObserverReceipt(receipt);
+  return { status: "NOT_OBSERVED", receipt };
+}
 
   const controller = new AbortController();
   let observed: MatchRecord | undefined;
@@ -277,6 +283,7 @@ export async function observeLiveInput(
   const receipt = renderLiveObserverReceipt({
     network: options.network,
     status,
+    baselineReady: true,
     commitSha: resolveCommitSha(options.commitSha),
     verifiedAt: new Date(now).toISOString()
   });
