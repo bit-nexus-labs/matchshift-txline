@@ -52,6 +52,16 @@ The optional TxLINE adapter supports:
 
 The public judge path uses deterministic synthetic replay, so evaluation never depends on a subscription, account, wallet, token purchase, or live fixture coverage.
 
+## Authenticated private evidence
+
+On July 17, 2026, an explicit local evidence runner completed against TxLINE mainnet without publishing provider data:
+
+- historical TxLINE integration smoke: `PASS`;
+- Solana subscription provenance verification: `PASS`;
+- literal normalized live SSE record: `NOT OBSERVED` during the short observation window and therefore not claimed as `PASS`.
+
+The generated receipts remain private. They contain no API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value. The public repository and judge deployment remain deterministic and credential-free.
+
 ## Judge demo
 
 The landing page is a side-by-side comparison console:
@@ -119,7 +129,7 @@ No private trading bot source, exchange secrets, raw TxLINE exports, or copied c
 ## Current limitations
 
 - The public demo uses deterministic synthetic data.
-- Real TxLINE transport is mock-tested but not live-smoke-tested in the public repository.
+- Authenticated historical TxLINE integration was privately verified, but a literal normalized live SSE record has not yet been observed and is not claimed as complete live-input proof.
 - Sessions are in memory.
 - Only an unambiguous full-match `1X2` market is normalized for the demo.
 - Production user authentication, persistence, shared watch rooms, and streaming-platform integrations are roadmap items.
@@ -140,4 +150,4 @@ No private trading bot source, exchange secrets, raw TxLINE exports, or copied c
 
 ## Suggested short pitch
 
-> MatchShift is a personal match timeline for delayed viewers. Instead of merely hiding the live score in the interface, it enforces a visibility cursor on the server. Two people can follow the same match at different playback minutes without the delayed viewer receiving future goals, odds changes, or explanations. The judge demo is one click, walletless, loginless, and deterministic, while the optional TxLINE adapter handles official snapshots and streams with fail-closed ordering safety.
+> MatchShift is a personal match timeline for delayed viewers. Instead of merely hiding the live score in the interface, it enforces a visibility cursor on the server. Two people can follow the same match at different playback minutes without the delayed viewer receiving future goals, odds changes, or explanations. The judge demo is one click, walletless, loginless, and deterministic, while the optional TxLINE adapter handles official snapshots and streams with fail-closed ordering safety. Authenticated historical integration and subscription provenance were privately verified without publishing provider data; literal live SSE remains honestly recorded as not yet observed.

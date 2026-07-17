@@ -43,6 +43,16 @@ Mocked official-shape tests verify:
 - exact duplicates are removed while amendments remain;
 - configured authorization values do not appear in tested status errors.
 
+## Authenticated private evidence
+
+An explicit local evidence runner was completed against TxLINE mainnet on July 17, 2026:
+
+- historical fixture, score, and supported full-match winner odds integration smoke: `PASS`;
+- Solana subscription provenance verification using public transaction data: `PASS`;
+- literal normalized live SSE data record: `NOT OBSERVED` during the short observation window.
+
+`NOT OBSERVED` is a distinct non-pass outcome rather than a failure or a claimed live proof. The runner completed and wrote private allowlisted receipts. No API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value was committed or published.
+
 ## Judge UI evidence
 
 Tests verify that:
@@ -79,7 +89,6 @@ The CI container job:
 
 Before submission, record:
 
-- public deployment URL;
 - deployed commit SHA or immutable image reference;
 - incognito-browser smoke result;
 - final demo video URL;

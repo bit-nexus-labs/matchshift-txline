@@ -19,16 +19,16 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] The guaranteed judge path requires no message or transaction signature.
 - [x] The guaranteed judge path requires no external account or login.
 - [x] The synthetic judge path is deterministic and does not depend on live fixture coverage.
-- [ ] A public HTTPS demo URL is added before submission.
+- [x] A public HTTPS demo URL is added before submission.
 - [ ] The public URL is tested in an incognito/private browser.
 
 ## Branding and claims
 
 - [x] No FIFA name, logo, trophy, marks, or implied affiliation is used.
 - [x] Synthetic teams are fictional and clearly presented as replay/demo data.
-- [x] The README distinguishes synthetic, mocked, optional transport, and not-yet-live-tested behavior.
+- [x] The README distinguishes synthetic, mocked, optional transport, authenticated private evidence, and not-yet-observed literal live SSE behavior.
 - [x] Visibility receipts are described as deterministic state hashes, not provider signatures or on-chain proofs.
-- [ ] The final video repeats the synthetic/mock/live distinctions accurately.
+- [ ] The final video repeats the synthetic/mock/private-evidence/live distinctions accurately.
 - [ ] Submission screenshots contain no restricted branding.
 
 ## TxLINE data handling
@@ -40,7 +40,8 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] The public judge demo uses deterministic synthetic records.
 - [x] Optional TxLINE credentials remain server-side.
 - [x] API tokens and guest JWTs are redacted from errors and status responses.
-- [ ] Any live-smoke evidence is collected privately and does not publish raw provider payloads.
+- [x] Authenticated historical integration and subscription provenance evidence were collected privately without publishing raw provider payloads.
+- [x] Literal live SSE is recorded as `NOT OBSERVED`, not misrepresented as `PASS`.
 - [ ] Data-license obligations are reviewed again before and after the hackathon concludes.
 
 ## Secrets and private code
