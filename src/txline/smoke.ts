@@ -443,6 +443,8 @@ export async function runHistoricalSmoke(
     earlyRecords.some((record) => record.sourceTimestamp > earlyCursor) ||
     earlyState.events.some((event) => event.sourceTimestamp > earlyCursor) ||
     futureRecords.length === 0 ||
+    earlyState.safety.active ||
+    liveState.safety.active ||
     [...futureEventIds].some((eventId) => earlyVisibleEventIds.has(eventId)) ||
     earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
   ) {
