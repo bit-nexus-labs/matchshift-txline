@@ -8,6 +8,7 @@
 - [TxLINE integration smoke](TXLINE_INTEGRATION_SMOKE.md) — local authenticated historical evidence path, redacted receipt rules, and proof boundaries.
 - [TxLINE Solana provenance](TXLINE_SOLANA_PROVENANCE.md) — public subscription-transaction verification without a private key or API-token linkage claim.
 - [TxLINE live observer](TXLINE_LIVE_OBSERVER.md) — literal SSE data-record evidence that rejects heartbeat-only connections.
+- [TxLINE endpoints and feedback](TXLINE_ENDPOINTS_AND_FEEDBACK.md) — exact HTTP surfaces used and specific developer-experience feedback from the integration.
 - [Windows evidence runner](TXLINE_EVIDENCE_WINDOWS.md) — one safe PowerShell workflow for the three manual evidence commands.
 
 ## Judge and deployment
