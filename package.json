@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "txline:smoke": "tsx src/txline/smoke-cli.ts"
   },
   "dependencies": {
     "fastify": "^5.0.0",
