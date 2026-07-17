@@ -1,0 +1,123 @@
+name: Apply live observer failure fix
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'txline/live-observer-20260717'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: txline/live-observer-20260717
+          fetch-depth: 0
+      - name: Preserve observer callback failures
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/txline/live-observer.ts')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '  let observed: MatchRecord | undefined;\n',
+              '  let observed: MatchRecord | undefined;\n  let observerFailure: LiveObserverError | undefined;\n',
+              1,
+          )
+          old_callback = '''    const onRecord = async (record: MatchRecord): Promise<void> => {
+                if (observed !== undefined) {
+                  return;
+                }
+                if (
+                  record.fixtureId !== fixture.fixtureId ||
+                  !Number.isSafeInteger(record.sourceTimestamp)
+                ) {
+                  throw new LiveObserverError(
+                    "NORMALIZED_RECORD_INVALID",
+                    "The live stream produced an invalid normalized record."
+                  );
+                }
+                observed = record;
+                controller.abort("LIVE_DATA_RECORD_OBSERVED");
+              };'''
+          new_callback = '''    const onRecord = async (record: MatchRecord): Promise<void> => {
+                if (observed !== undefined || observerFailure !== undefined) {
+                  return;
+                }
+                if (
+                  record.fixtureId !== fixture.fixtureId ||
+                  !Number.isSafeInteger(record.sourceTimestamp)
+                ) {
+                  observerFailure = new LiveObserverError(
+                    "NORMALIZED_RECORD_INVALID",
+                    "The live stream produced an invalid normalized record."
+                  );
+                  controller.abort("LIVE_DATA_RECORD_INVALID");
+                  return;
+                }
+                observed = record;
+                controller.abort("LIVE_DATA_RECORD_OBSERVED");
+              };'''
+          if text.count(old_callback) != 1:
+              raise SystemExit('Expected live observer callback exactly once')
+          text = text.replace(old_callback, new_callback)
+          old_streams = '''    await Promise.allSettled([
+                options.adapter.runStream("odds", {
+                  fixtureId: fixture.fixtureId,
+                  signal: controller.signal,
+                  maxReconnectAttempts: 0,
+                  onRecord
+                }),
+                options.adapter.runStream("scores", {
+                  fixtureId: fixture.fixtureId,
+                  signal: controller.signal,
+                  maxReconnectAttempts: 0,
+                  onRecord
+                })
+              ]);'''
+          new_streams = '''    const streamResults = await Promise.allSettled([
+                options.adapter.runStream("odds", {
+                  fixtureId: fixture.fixtureId,
+                  signal: controller.signal,
+                  maxReconnectAttempts: 0,
+                  onRecord
+                }),
+                options.adapter.runStream("scores", {
+                  fixtureId: fixture.fixtureId,
+                  signal: controller.signal,
+                  maxReconnectAttempts: 0,
+                  onRecord
+                })
+              ]);
+              if (observerFailure !== undefined) {
+                throw observerFailure;
+              }
+              const rejected = streamResults.find(
+                (result): result is PromiseRejectedResult => result.status === "rejected"
+              );
+              if (rejected !== undefined && !controller.signal.aborted) {
+                throw new LiveObserverError(
+                  "STREAM_OBSERVER_FAILED",
+                  "A TxLINE live stream failed before observation completed."
+                );
+              }'''
+          if text.count(old_streams) != 1:
+              raise SystemExit('Expected live observer stream block exactly once')
+          text = text.replace(old_streams, new_streams)
+          path.write_text(text, encoding='utf-8')
+          Path('.github/workflows/apply-live-observer-failure-fix.yml').unlink()
+          PY
+      - name: Commit observer failure fix
+        shell: bash
+        run: |
+          git config user.name "bit-nexus-labs"
+          git config user.email "289002433+bit-nexus-labs@users.noreply.github.com"
+          git add -A
+          git commit -m "Preserve live observer validation failures"
+          git push origin HEAD:txline/live-observer-20260717
