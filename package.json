@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "txline:smoke": "tsx src/txline/smoke-cli.ts",
-    "txline:provenance": "tsx src/txline/solana-provenance-cli.ts"
+    "txline:provenance": "tsx src/txline/solana-provenance-cli.ts",
+    "txline:live-observe": "tsx src/txline/live-observer-cli.ts"
   },
   "dependencies": {
     "fastify": "^5.0.0",
