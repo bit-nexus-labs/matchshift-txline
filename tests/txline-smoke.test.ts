@@ -154,7 +154,7 @@ describe("TxLINE historical integration smoke", () => {
 
     await expect(
       runHistoricalSmoke({ network: "mainnet", now: NOW, client })
-    ).rejects.toMatchObject<TxlineSmokeError>({
+    ).rejects.toMatchObject({
       code: "NO_HISTORICAL_FIXTURE"
     });
   });
