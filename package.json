@@ -14,6 +14,7 @@
     "test": "vitest run",
     "txline:activate": "tsx src/txline/phantom-activation-cli.ts",
     "txline:smoke": "tsx src/txline/smoke-cli.ts",
+    "txline:smoke-reference": "tsx src/txline/reference-smoke-cli.ts",
     "txline:provenance": "tsx src/txline/solana-provenance-cli.ts",
     "txline:live-observe": "tsx src/txline/live-observer-cli.ts"
   },

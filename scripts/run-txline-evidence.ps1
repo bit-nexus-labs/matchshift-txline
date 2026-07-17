@@ -100,7 +100,7 @@ try {
     $env:TXLINE_NETWORK = $Network
     $env:TXLINE_API_TOKEN = $plainToken
 
-    $fixtureOverride = Read-Host "Historical fixture ID override (press Enter for automatic selection)"
+    $fixtureOverride = Read-Host "Historical fixture ID override (press Enter for official TxLINE reference fixture 18213979)"
     if ([string]::IsNullOrWhiteSpace($fixtureOverride)) {
         Remove-Item Env:TXLINE_FIXTURE_ID -ErrorAction SilentlyContinue
     }
@@ -109,7 +109,7 @@ try {
     }
 
     Invoke-PnpmStep -Label "Historical TxLINE integration smoke" -Arguments @(
-        "txline:smoke"
+        "txline:smoke-reference"
     )
 
     if (-not $SkipProvenance) {
