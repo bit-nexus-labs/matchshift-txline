@@ -25,18 +25,13 @@ jobs:
 
           path = Path('src/txline/smoke.ts')
           text = path.read_text(encoding='utf-8')
-          old = '''  const futureEventIds = futureRecords
-            .filter((record) => record.kind === "event")
-            .map((record) => record.recordId);
-          const serializedEarlyState = JSON.stringify(earlyState);
-
-          if (
-            earlyRecords.some((record) => record.sourceTimestamp > earlyCursor) ||
-            futureRecords.length === 0 ||
-            futureEventIds.some((eventId) => serializedEarlyState.includes(eventId)) ||
-            earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
-          ) {'''
-          new = '''  const futureEventIds = new Set(
+          start_marker = '  const futureEventIds = futureRecords'
+          end_marker = '  const verifiedAt = new Date(now).toISOString();'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit('Smoke assertion markers were not found')
+          replacement = '''  const futureEventIds = new Set(
             futureRecords
               .filter((record) => record.kind === "event")
               .map((record) => record.recordId)
@@ -51,10 +46,15 @@ jobs:
             futureRecords.length === 0 ||
             [...futureEventIds].some((eventId) => earlyVisibleEventIds.has(eventId)) ||
             earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
-          ) {'''
-          if text.count(old) != 1:
-              raise SystemExit('Expected smoke assertion block exactly once')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          ) {
+            throw new TxlineSmokeError(
+              "FUTURE_ISOLATION_FAILED",
+              "The early viewer session received information beyond its visibility cursor."
+            );
+          }
+
+          '''
+          path.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
           Path('.github/workflows/apply-smoke-fix.yml').unlink()
           PY
       - name: Commit smoke assertion fix
