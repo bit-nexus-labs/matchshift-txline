@@ -30,6 +30,12 @@ The server does not make a TxLINE request merely because it starts. Synthetic mo
 
 Authenticated evidence is generated only by an explicit local runner. Its receipts remain private and contain no API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value. On July 17, 2026, the historical TxLINE integration smoke and Solana subscription provenance verification passed on mainnet. A literal normalized SSE record did not arrive during the short live observation window, so live input remains honestly recorded as `NOT OBSERVED`, not `PASS`.
 
+## Commercial path
+
+MatchShift is designed first as a white-label B2B API/SDK for OTT streaming platforms, sports broadcasters, sports-media apps, and fan-community products. A customer can connect the server-side visibility gate to its video player, match centre, statistics, chat, or odds-context overlay so delayed viewers receive synchronized information instead of live-edge spoilers.
+
+The planned revenue model is a recurring platform licence plus usage-based pricing by active synchronized session or covered event. A later direct-to-consumer premium tier could add private delayed watch rooms and cross-device playback synchronization. The public judge demo remains free and credential-free.
+
 ## Run the judge demo
 
 Requirements:
