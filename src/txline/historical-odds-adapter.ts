@@ -16,6 +16,17 @@ const ACCEPTED_PERIODS = new Set([
   "ft"
 ]);
 
+export interface HistoricalOddsStructuralClassification {
+  isRecord: boolean;
+  marketTypePresent: boolean;
+  alreadySupportedWinnerMarket: boolean;
+  marketParametersEmpty: boolean;
+  marketPeriodAccepted: boolean;
+  priceNamesArity: number;
+  explicitWinnerLabels: boolean;
+  adapterEligible: boolean;
+}
+
 function asRecord(value: unknown): UnknownRecord | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as UnknownRecord)
@@ -32,14 +43,17 @@ function readString(value: unknown): string | undefined {
     : undefined;
 }
 
-function marketContextAllowsFullMatchWinner(record: UnknownRecord): boolean {
-  const parameters = readString(
-    record.MarketParameters ?? record.marketParameters
-  ) ?? "";
+function marketParametersEmpty(record: UnknownRecord): boolean {
+  return (
+    readString(record.MarketParameters ?? record.marketParameters) ?? ""
+  ) === "";
+}
+
+function marketPeriodAccepted(record: UnknownRecord): boolean {
   const period = canonicalLabel(
     readString(record.MarketPeriod ?? record.marketPeriod) ?? ""
   );
-  return parameters === "" && ACCEPTED_PERIODS.has(period);
+  return ACCEPTED_PERIODS.has(period);
 }
 
 function explicitWinnerLabels(value: unknown): boolean {
@@ -65,25 +79,62 @@ function explicitWinnerLabels(value: unknown): boolean {
   return direct || participantBased;
 }
 
+export function classifyHistoricalOddsStructure(
+  value: unknown
+): HistoricalOddsStructuralClassification {
+  const record = asRecord(value);
+  if (record === undefined) {
+    return {
+      isRecord: false,
+      marketTypePresent: false,
+      alreadySupportedWinnerMarket: false,
+      marketParametersEmpty: false,
+      marketPeriodAccepted: false,
+      priceNamesArity: 0,
+      explicitWinnerLabels: false,
+      adapterEligible: false
+    };
+  }
+
+  const marketType = readString(record.SuperOddsType ?? record.superOddsType);
+  const alreadySupportedWinnerMarket =
+    marketType !== undefined && KNOWN_WINNER_MARKETS.has(canonicalLabel(marketType));
+  const rawPriceNames = record.PriceNames ?? record.priceNames;
+  const priceNamesArity = Array.isArray(rawPriceNames) ? rawPriceNames.length : 0;
+  const parametersEmpty = marketParametersEmpty(record);
+  const periodAccepted = marketPeriodAccepted(record);
+  const winnerLabels = explicitWinnerLabels(rawPriceNames);
+
+  return {
+    isRecord: true,
+    marketTypePresent: marketType !== undefined,
+    alreadySupportedWinnerMarket,
+    marketParametersEmpty: parametersEmpty,
+    marketPeriodAccepted: periodAccepted,
+    priceNamesArity,
+    explicitWinnerLabels: winnerLabels,
+    adapterEligible:
+      marketType !== undefined &&
+      !alreadySupportedWinnerMarket &&
+      parametersEmpty &&
+      periodAccepted &&
+      winnerLabels
+  };
+}
+
 function adaptRecord(value: unknown): unknown {
   const record = asRecord(value);
   if (record === undefined) {
     return value;
   }
 
+  const classification = classifyHistoricalOddsStructure(record);
+  if (!classification.adapterEligible) {
+    return value;
+  }
+
   const marketType = readString(record.SuperOddsType ?? record.superOddsType);
   if (marketType === undefined) {
-    return value;
-  }
-
-  if (KNOWN_WINNER_MARKETS.has(canonicalLabel(marketType))) {
-    return value;
-  }
-
-  if (
-    !marketContextAllowsFullMatchWinner(record) ||
-    !explicitWinnerLabels(record.PriceNames ?? record.priceNames)
-  ) {
     return value;
   }
 
