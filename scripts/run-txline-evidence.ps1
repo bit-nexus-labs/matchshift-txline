@@ -108,9 +108,21 @@ try {
         $env:TXLINE_FIXTURE_ID = $fixtureOverride.Trim()
     }
 
-    Invoke-PnpmStep -Label "Historical TxLINE integration smoke" -Arguments @(
-        "txline:smoke-reference"
-    )
+    try {
+        Invoke-PnpmStep -Label "Historical TxLINE integration smoke" -Arguments @(
+            "txline:smoke-reference"
+        )
+    }
+    catch {
+        Write-Host ""
+        Write-Host "Historical smoke failed. Running the redacted odds classification probe before exiting." -ForegroundColor DarkYellow
+        Write-Host "The probe prints schema paths and fixed counters only; it does not print provider values or credentials." -ForegroundColor DarkYellow
+        & pnpm "txline:probe-odds-shape"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "The redacted odds classification probe also failed with exit code $LASTEXITCODE."
+        }
+        throw
+    }
 
     if (-not $SkipProvenance) {
         Write-Host ""

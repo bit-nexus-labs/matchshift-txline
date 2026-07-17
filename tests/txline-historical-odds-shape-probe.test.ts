@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../src/txline/credentials.js";
 import {
+  classifyHistoricalOddsPayload,
   collectReplayTimestamps,
   formatHistoricalOddsShapeReport,
   probeHistoricalOddsShape
 } from "../src/txline/historical-odds-shape-probe.js";
+import { normalizeFixtures } from "../src/txline/normalizer.js";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -20,6 +22,38 @@ function sseResponse(body: string): Response {
   });
 }
 
+function fixture() {
+  const normalized = normalizeFixtures([
+    {
+      FixtureId: 101,
+      StartTime: "2026-07-15T18:00:00.000Z",
+      Participant1: "Alpha",
+      Participant2: "Beta",
+      Participant1IsHome: true,
+      GameState: 1
+    }
+  ])[0];
+  if (normalized === undefined) {
+    throw new Error("Expected fixture normalization.");
+  }
+  return normalized;
+}
+
+function historicalOdds(overrides: Record<string, unknown> = {}) {
+  return {
+    FixtureId: 101,
+    MessageId: "private-message",
+    Ts: 1_784_140_000,
+    SuperOddsType: "Historical full result",
+    MarketParameters: null,
+    MarketPeriod: null,
+    PriceNames: ["1", "X", "2"],
+    Prices: [2.1, 3.2, 3.6],
+    Pct: [47.6, 31.2, 27.8],
+    ...overrides
+  };
+}
+
 describe("TxLINE historical odds shape probe", () => {
   it("collects ordered unique replay timestamps", () => {
     expect(
@@ -30,6 +64,70 @@ describe("TxLINE historical odds shape probe", () => {
         { Ts: 3000 }
       ])
     ).toEqual([1_000_000, 2_000_000, 3_000_000]);
+  });
+
+  it("classifies the exact historical adapter and normalizer predicates", () => {
+    const classification = classifyHistoricalOddsPayload(
+      [
+        historicalOdds({
+          SuperOddsType: "private-total-market",
+          MarketParameters: "2.5",
+          PriceNames: ["Over", "Under"],
+          Prices: [1.9, 1.9],
+          Pct: [50, 50]
+        }),
+        historicalOdds(),
+        historicalOdds({
+          MessageId: "private-known-winner",
+          SuperOddsType: "1X2",
+          MarketPeriod: "Full Time"
+        }),
+        historicalOdds({
+          MessageId: "private-first-half",
+          MarketPeriod: "FirstHalf"
+        })
+      ],
+      fixture()
+    );
+
+    expect(classification).toEqual({
+      directRecords: 4,
+      priceNamesArity2: 1,
+      priceNamesArity3: 3,
+      priceNamesArityOther: 0,
+      marketTypePresent: 4,
+      alreadySupportedWinnerMarket: 1,
+      marketParametersEmpty: 3,
+      marketPeriodAccepted: 3,
+      explicitWinnerLabels: 3,
+      adapterEligible: 1,
+      adapterRewritten: 1,
+      sourceNormalizedSupported: 1,
+      adaptedNormalizedSupported: 2,
+      adaptedIgnoredUnsupported: 2,
+      adaptedMalformedSupported: 0
+    });
+
+    const text = formatHistoricalOddsShapeReport({
+      snapshots: [
+        {
+          label: "early",
+          report: {
+            status: 200,
+            contentType: "application/json",
+            byteLength: 100,
+            visitedNodes: 1,
+            truncated: false,
+            paths: []
+          },
+          classification
+        }
+      ]
+    });
+    expect(text).toContain("classification-adapter-eligible=1");
+    expect(text).toContain("classification-adapted-normalized-supported=2");
+    expect(text).not.toContain("private-total-market");
+    expect(text).not.toContain("private-message");
   });
 
   it("probes early and late odds snapshots without exposing provider values", async () => {
@@ -90,6 +188,7 @@ describe("TxLINE historical odds shape probe", () => {
     expect(report.snapshots).toHaveLength(2);
     expect(text).toContain("TXLINE HISTORICAL ODDS SHAPE: PASS");
     expect(text).toContain("$.Markets[].Outcomes[].Price");
+    expect(text).toContain("classification-direct-records=0");
     expect(text).not.toContain("private-team-a");
     expect(text).not.toContain("private-winner-market");
     expect(text).not.toContain("api-token");
