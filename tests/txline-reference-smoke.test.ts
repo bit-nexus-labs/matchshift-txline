@@ -48,7 +48,7 @@ describe("TxLINE reference historical smoke adapter", () => {
     ]);
   });
 
-  it("loads historical scores once and delegates odds requests", async () => {
+  it("loads scores once and anchors the first odds request to reference kickoff", async () => {
     let scoreCalls = 0;
     const oddsCalls: Array<{ fixtureId: string; asOf: number }> = [];
     const source = {
@@ -65,9 +65,18 @@ describe("TxLINE reference historical smoke adapter", () => {
 
     await client.fetchFixturesSnapshotForDay(0);
     await client.fetchScoresHistorical(FIXTURE_ID);
-    await client.fetchOddsSnapshotAt(FIXTURE_ID, EARLY);
+    await Promise.all([
+      client.fetchOddsSnapshotAt(FIXTURE_ID, EARLY + 10 * 60_000),
+      client.fetchOddsSnapshotAt(FIXTURE_ID, EARLY + 49 * 60_000)
+    ]);
 
     expect(scoreCalls).toBe(1);
-    expect(oddsCalls).toEqual([{ fixtureId: FIXTURE_ID, asOf: EARLY }]);
+    expect(oddsCalls).toHaveLength(2);
+    expect(oddsCalls).toEqual(
+      expect.arrayContaining([
+        { fixtureId: FIXTURE_ID, asOf: EARLY + 1_000 },
+        { fixtureId: FIXTURE_ID, asOf: EARLY + 49 * 60_000 }
+      ])
+    );
   });
 });
