@@ -70,7 +70,32 @@ describe("TxLINE replay HTTP source", () => {
     ).toEqual([{ seq: 1, action: "kickoff" }]);
   });
 
-  it("unwraps object envelopes and nested JSON strings without collecting child totals", () => {
+  it("adapts actual historical Score and Data fields to normalizer aliases", () => {
+    const score = soccerScore(1, 0);
+    const data = { Participant: 1, Minutes: 12 };
+    const scoreRecord = {
+      FixtureId: 18_213_979,
+      Seq: 9,
+      Ts: 1_783_767_600_000,
+      Action: "score_update",
+      Score: score,
+      Data: data
+    };
+    const payload = {
+      event: "historical_scores",
+      message: JSON.stringify({ payload: { records: [scoreRecord] } })
+    };
+
+    expect(extractTxlineReplayRecords(payload, "scores")).toEqual([
+      {
+        ...scoreRecord,
+        scoreSoccer: score,
+        dataSoccer: data
+      }
+    ]);
+  });
+
+  it("unwraps live-style object envelopes without collecting child totals", () => {
     const scoreRecord = {
       fixtureId: 18_213_979,
       seq: 9,
