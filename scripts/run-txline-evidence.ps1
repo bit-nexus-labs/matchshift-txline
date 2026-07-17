@@ -9,6 +9,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:LastEvidenceExitCode = 0
 
 function ConvertFrom-SecureStringPlainText {
     param([Parameter(Mandatory = $true)][Security.SecureString]$SecureValue)
@@ -31,12 +32,11 @@ function Invoke-PnpmStep {
 
     Write-Host ""
     Write-Host "=== $Label ===" -ForegroundColor Cyan
-    & pnpm @Arguments | ForEach-Object { Write-Host $_ }
-    $exitCode = $LASTEXITCODE
-    if ($AllowedExitCodes -notcontains $exitCode) {
-        throw "$Label failed with exit code $exitCode."
+    & pnpm @Arguments
+    $script:LastEvidenceExitCode = $LASTEXITCODE
+    if ($AllowedExitCodes -notcontains $script:LastEvidenceExitCode) {
+        throw "$Label failed with exit code $script:LastEvidenceExitCode."
     }
-    return $exitCode
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -72,7 +72,7 @@ try {
         "install",
         "--frozen-lockfile",
         "--reporter=silent"
-    ) | Out-Null
+    )
 
     $secureToken = Read-Host "TxLINE API token" -AsSecureString
     $plainToken = ConvertFrom-SecureStringPlainText -SecureValue $secureToken
@@ -93,7 +93,7 @@ try {
 
     Invoke-PnpmStep -Label "Historical TxLINE integration smoke" -Arguments @(
         "txline:smoke"
-    ) | Out-Null
+    )
 
     if (-not $SkipProvenance) {
         Write-Host ""
@@ -112,7 +112,7 @@ try {
             $env:TXLINE_SUBSCRIPTION_TX_SIG = $transactionSignature.Trim()
             Invoke-PnpmStep -Label "Solana subscription provenance" -Arguments @(
                 "txline:provenance"
-            ) | Out-Null
+            )
         }
         else {
             Write-Host "Solana provenance: SKIPPED" -ForegroundColor Yellow
@@ -121,9 +121,10 @@ try {
 
     if (-not $SkipLive) {
         Remove-Item Env:TXLINE_LIVE_FIXTURE_ID -ErrorAction SilentlyContinue
-        $liveExitCode = Invoke-PnpmStep -Label "Literal TxLINE live-input observation" -Arguments @(
+        Invoke-PnpmStep -Label "Literal TxLINE live-input observation" -Arguments @(
             "txline:live-observe"
         ) -AllowedExitCodes @(0, 2)
+        $liveExitCode = $script:LastEvidenceExitCode
 
         if ($liveExitCode -eq 2) {
             Write-Host "Live input was not observed in this run. This is not recorded as PASS and may be repeated during a covered match." -ForegroundColor Yellow
