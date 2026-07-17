@@ -430,22 +430,27 @@ export async function runHistoricalSmoke(
   const futureRecords = records.filter(
     (record) => record.sourceTimestamp > earlyCursor
   );
-  const futureEventIds = futureRecords
+  const futureEventIds = new Set(
+  futureRecords
     .filter((record) => record.kind === "event")
-    .map((record) => record.recordId);
-  const serializedEarlyState = JSON.stringify(earlyState);
+    .map((record) => record.recordId)
+);
+const earlyVisibleEventIds = new Set(
+  earlyState.events.map((event) => event.eventId)
+);
 
-  if (
-    earlyRecords.some((record) => record.sourceTimestamp > earlyCursor) ||
-    futureRecords.length === 0 ||
-    futureEventIds.some((eventId) => serializedEarlyState.includes(eventId)) ||
-    earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
-  ) {
-    throw new TxlineSmokeError(
-      "FUTURE_ISOLATION_FAILED",
-      "The early viewer session received information beyond its visibility cursor."
-    );
-  }
+if (
+  earlyRecords.some((record) => record.sourceTimestamp > earlyCursor) ||
+  earlyState.events.some((event) => event.sourceTimestamp > earlyCursor) ||
+  futureRecords.length === 0 ||
+  [...futureEventIds].some((eventId) => earlyVisibleEventIds.has(eventId)) ||
+  earlyState.session.visibilityCursor >= liveState.session.visibilityCursor
+) {
+  throw new TxlineSmokeError(
+    "FUTURE_ISOLATION_FAILED",
+    "The early viewer session received information beyond its visibility cursor."
+  );
+}
 
   const verifiedAt = new Date(now).toISOString();
   const receipt = renderHistoricalSmokeReceipt({
