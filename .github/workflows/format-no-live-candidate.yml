@@ -1,0 +1,62 @@
+name: Format no-live-candidate block
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'txline/live-no-candidate-status-20260717'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: txline/live-no-candidate-status-20260717
+          fetch-depth: 0
+      - name: Format early NOT OBSERVED return
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/txline/live-observer.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '''if (fixture === undefined) {
+            const receipt = renderLiveObserverReceipt({
+              network: options.network,
+              status: "NOT_OBSERVED",
+              baselineReady: false,
+              commitSha: resolveCommitSha(options.commitSha),
+              verifiedAt: new Date(now).toISOString()
+            });
+            validateLiveObserverReceipt(receipt);
+            return { status: "NOT_OBSERVED", receipt };
+          }'''
+          new = '''  if (fixture === undefined) {
+            const receipt = renderLiveObserverReceipt({
+              network: options.network,
+              status: "NOT_OBSERVED",
+              baselineReady: false,
+              commitSha: resolveCommitSha(options.commitSha),
+              verifiedAt: new Date(now).toISOString()
+            });
+            validateLiveObserverReceipt(receipt);
+            return { status: "NOT_OBSERVED", receipt };
+          }'''
+          if text.count(old) != 1:
+              raise SystemExit('Expected unindented no-candidate block exactly once')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          Path('.github/workflows/format-no-live-candidate.yml').unlink()
+          PY
+      - name: Commit formatting
+        shell: bash
+        run: |
+          git config user.name "bit-nexus-labs"
+          git config user.email "289002433+bit-nexus-labs@users.noreply.github.com"
+          git add -A
+          git commit -m "Format no-live-candidate branch"
+          git push origin HEAD:txline/live-no-candidate-status-20260717
