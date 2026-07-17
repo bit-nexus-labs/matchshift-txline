@@ -16,6 +16,8 @@ const ACCEPTED_PERIODS = new Set([
   "ft"
 ]);
 
+const DRAW_LABELS = new Set(["draw", "x", "tie", "thedraw", "0"]);
+
 export interface HistoricalOddsStructuralClassification {
   isRecord: boolean;
   marketTypePresent: boolean;
@@ -24,7 +26,13 @@ export interface HistoricalOddsStructuralClassification {
   marketPeriodAccepted: boolean;
   priceNamesArity: number;
   explicitWinnerLabels: boolean;
+  namedWinnerLabels: boolean;
   adapterEligible: boolean;
+}
+
+interface WinnerLabelClassification {
+  explicit: boolean;
+  namedSidesWithMiddleDraw: boolean;
 }
 
 function asRecord(value: unknown): UnknownRecord | undefined {
@@ -56,27 +64,38 @@ function marketPeriodAccepted(record: UnknownRecord): boolean {
   return ACCEPTED_PERIODS.has(period);
 }
 
-function explicitWinnerLabels(value: unknown): boolean {
+function classifyWinnerLabels(value: unknown): WinnerLabelClassification {
   if (!Array.isArray(value) || value.length !== 3) {
-    return false;
+    return { explicit: false, namedSidesWithMiddleDraw: false };
   }
-  if (value.some((item) => typeof item !== "string")) {
-    return false;
+  if (
+    value.some(
+      (item) => typeof item !== "string" || item.trim() === ""
+    )
+  ) {
+    return { explicit: false, namedSidesWithMiddleDraw: false };
   }
 
   const labels = (value as string[]).map(canonicalLabel);
   if (new Set(labels).size !== 3) {
-    return false;
+    return { explicit: false, namedSidesWithMiddleDraw: false };
   }
 
+  const drawPresent = labels.some((label) => DRAW_LABELS.has(label));
   const direct =
-    labels.includes("home") && labels.includes("draw") && labels.includes("away");
+    labels.includes("home") && drawPresent && labels.includes("away");
   const participantBased =
     (labels.includes("1") || labels.includes("participant1")) &&
-    (labels.includes("x") || labels.includes("draw")) &&
+    drawPresent &&
     (labels.includes("2") || labels.includes("participant2"));
+  const explicit = direct || participantBased;
+  const namedSidesWithMiddleDraw =
+    !explicit &&
+    DRAW_LABELS.has(labels[1] ?? "") &&
+    !DRAW_LABELS.has(labels[0] ?? "") &&
+    !DRAW_LABELS.has(labels[2] ?? "");
 
-  return direct || participantBased;
+  return { explicit, namedSidesWithMiddleDraw };
 }
 
 export function classifyHistoricalOddsStructure(
@@ -92,6 +111,7 @@ export function classifyHistoricalOddsStructure(
       marketPeriodAccepted: false,
       priceNamesArity: 0,
       explicitWinnerLabels: false,
+      namedWinnerLabels: false,
       adapterEligible: false
     };
   }
@@ -103,7 +123,7 @@ export function classifyHistoricalOddsStructure(
   const priceNamesArity = Array.isArray(rawPriceNames) ? rawPriceNames.length : 0;
   const parametersEmpty = marketParametersEmpty(record);
   const periodAccepted = marketPeriodAccepted(record);
-  const winnerLabels = explicitWinnerLabels(rawPriceNames);
+  const winnerLabels = classifyWinnerLabels(rawPriceNames);
 
   return {
     isRecord: true,
@@ -112,13 +132,14 @@ export function classifyHistoricalOddsStructure(
     marketParametersEmpty: parametersEmpty,
     marketPeriodAccepted: periodAccepted,
     priceNamesArity,
-    explicitWinnerLabels: winnerLabels,
+    explicitWinnerLabels: winnerLabels.explicit,
+    namedWinnerLabels: winnerLabels.namedSidesWithMiddleDraw,
     adapterEligible:
       marketType !== undefined &&
       !alreadySupportedWinnerMarket &&
       parametersEmpty &&
       periodAccepted &&
-      winnerLabels
+      (winnerLabels.explicit || winnerLabels.namedSidesWithMiddleDraw)
   };
 }
 
@@ -138,11 +159,16 @@ function adaptRecord(value: unknown): unknown {
     return value;
   }
 
-  return {
+  const adapted: UnknownRecord = {
     ...record,
     HistoricalSourceSuperOddsType: marketType,
     SuperOddsType: "1X2"
   };
+  if (classification.namedWinnerLabels) {
+    delete adapted.priceNames;
+    adapted.PriceNames = ["Home", "Draw", "Away"];
+  }
+  return adapted;
 }
 
 export function adaptHistoricalOddsPayload(value: unknown): unknown {

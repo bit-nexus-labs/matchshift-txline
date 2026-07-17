@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { adaptHistoricalOddsPayload } from "../src/txline/historical-odds-adapter.js";
+import {
+  adaptHistoricalOddsPayload,
+  classifyHistoricalOddsStructure
+} from "../src/txline/historical-odds-adapter.js";
 import { normalizeFixtures, normalizeOddsPayload } from "../src/txline/normalizer.js";
 
 function fixture() {
@@ -52,6 +55,30 @@ describe("TxLINE historical odds structural adapter", () => {
     });
   });
 
+  it("canonicalizes named sides with a middle draw without retaining team labels", () => {
+    const source = historicalOdds({
+      PriceNames: ["Private side A", "Draw", "Private side B"]
+    });
+    const classification = classifyHistoricalOddsStructure(source);
+    const adapted = adaptHistoricalOddsPayload(source);
+    const normalized = normalizeOddsPayload(adapted, { fixture: fixture() });
+
+    expect(classification).toMatchObject({
+      explicitWinnerLabels: false,
+      namedWinnerLabels: true,
+      adapterEligible: true
+    });
+    expect(adapted).toMatchObject({
+      HistoricalSourceSuperOddsType: "Historical full result",
+      SuperOddsType: "1X2",
+      PriceNames: ["Home", "Draw", "Away"]
+    });
+    expect(JSON.stringify(adapted)).not.toContain("Private side A");
+    expect(JSON.stringify(adapted)).not.toContain("Private side B");
+    expect(normalized.safeHold).toBe(false);
+    expect(normalized.records).toHaveLength(1);
+  });
+
   it("does not rewrite two-outcome totals or handicaps", () => {
     const source = historicalOdds({
       SuperOddsType: "Historical total",
@@ -67,6 +94,33 @@ describe("TxLINE historical odds structural adapter", () => {
   it("does not rewrite a three-way market outside the full-match context", () => {
     const source = historicalOdds({ MarketPeriod: "FirstHalf" });
 
+    expect(adaptHistoricalOddsPayload(source)).toBe(source);
+  });
+
+  it("does not treat double-chance labels as a named winner market", () => {
+    const source = historicalOdds({
+      SuperOddsType: "Historical double chance",
+      PriceNames: ["1X", "12", "X2"]
+    });
+
+    expect(classifyHistoricalOddsStructure(source)).toMatchObject({
+      explicitWinnerLabels: false,
+      namedWinnerLabels: false,
+      adapterEligible: false
+    });
+    expect(adaptHistoricalOddsPayload(source)).toBe(source);
+  });
+
+  it("does not infer named sides when the draw marker is not in the middle", () => {
+    const source = historicalOdds({
+      PriceNames: ["Draw", "Private side A", "Private side B"]
+    });
+
+    expect(classifyHistoricalOddsStructure(source)).toMatchObject({
+      explicitWinnerLabels: false,
+      namedWinnerLabels: false,
+      adapterEligible: false
+    });
     expect(adaptHistoricalOddsPayload(source)).toBe(source);
   });
 
