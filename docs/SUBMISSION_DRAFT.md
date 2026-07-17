@@ -52,6 +52,19 @@ The optional TxLINE adapter supports:
 
 The public judge path uses deterministic synthetic replay, so evaluation never depends on a subscription, account, wallet, token purchase, or live fixture coverage.
 
+## Specific TxLINE endpoints used
+
+- `POST /auth/guest/start`
+- `GET /api/fixtures/snapshot?competitionId=<id>`
+- `GET /api/odds/snapshot/:fixtureId`
+- `GET /api/odds/snapshot/:fixtureId?asOf=<timestamp>`
+- `GET /api/scores/snapshot/:fixtureId`
+- `GET /api/scores/historical/:fixtureId`
+- `GET /api/odds/stream`
+- `GET /api/scores/stream`
+
+The full endpoint purpose, authentication behavior, and developer feedback are documented in [`TXLINE_ENDPOINTS_AND_FEEDBACK.md`](TXLINE_ENDPOINTS_AND_FEEDBACK.md).
+
 ## Authenticated private evidence
 
 On July 17, 2026, an explicit local evidence runner completed against TxLINE mainnet without publishing provider data:
@@ -61,6 +74,12 @@ On July 17, 2026, an explicit local evidence runner completed against TxLINE mai
 - literal normalized live SSE record: `NOT OBSERVED` during the short observation window and therefore not claimed as `PASS`.
 
 The generated receipts remain private. They contain no API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value. The public repository and judge deployment remain deterministic and credential-free.
+
+## TxLINE developer experience feedback
+
+The guest-JWT bootstrap, shared authentication model, snapshot examples, and normalized cross-competition schema made a clean server-only adapter possible. Snapshot-first hydration also mapped well to a reliable reconnect design.
+
+The main friction was around historical schema and timing boundaries. A valid historical three-way winner shape was not covered by the first narrow classifier, so additional historical odds examples and a clearer mapping between `SuperOddsType`, `PriceNames`, `MarketParameters`, and `MarketPeriod` would help. Precise `asOf` semantics and explicit guidance distinguishing heartbeat-only SSE connections from observed data records would also reduce integration uncertainty.
 
 ## Judge demo
 
@@ -122,7 +141,7 @@ TxLINE / deterministic replay
 
 - Public demo: https://matchshift-txline.onrender.com
 - Health check: https://matchshift-txline.onrender.com/health
-- Initial deployed source: `55ffa7cf6a398f50b466dd5be9fa8d9db59bac22`
+- Deployment source: Render auto-deploys the reviewed `main` branch; Render Events showed `6ee0a0e737dbe05e1920b0a74d7ba862a49ec9db` live on July 17 before final documentation polish.
 - Deployment mode: `TXLINE_MODE=synthetic`
 - Deployment receipt: [`PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md`](PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md)
 

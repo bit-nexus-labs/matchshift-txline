@@ -39,7 +39,7 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] A later optional direct-to-consumer premium path is distinguished from the free judge experience.
 - [ ] The final video repeats the customer, product, and revenue model in one concise statement.
 
-## TxLINE data handling
+## TxLINE data handling and submission requirements
 
 - [x] No raw TxLINE payload export is committed.
 - [x] No raw Discord or Telegram export is committed.
@@ -50,6 +50,8 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] API tokens and guest JWTs are redacted from errors and status responses.
 - [x] Authenticated historical integration and subscription provenance evidence were collected privately without publishing raw provider payloads.
 - [x] Literal live SSE is recorded as `NOT OBSERVED`, not misrepresented as `PASS`.
+- [x] The exact TxLINE HTTP endpoints used are listed publicly.
+- [x] Specific TxLINE developer-experience feedback is documented publicly.
 - [ ] Data-license obligations are reviewed again before and after the hackathon concludes.
 
 ## Secrets and private code
@@ -76,8 +78,8 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] GitHub Actions builds the production Docker image and smoke-tests `/health`.
 - [x] The public server defaults to `TXLINE_MODE=synthetic`.
 - [x] The runtime uses a non-root container user.
-- [ ] The deployed commit SHA is recorded in the submission notes.
-- [ ] The final public URL points to the same reviewed commit or container image.
+- [x] A verified deployed commit SHA is recorded in the deployment receipt and submission notes.
+- [ ] The final public URL points to the final reviewed commit or equivalent container image after the last submission change.
 
 ## Demo and video
 
@@ -86,6 +88,9 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] The UI demonstrates live versus delayed sessions side by side.
 - [x] The 49:00 goal and 49:10 probability update reveal separately.
 - [x] Pause, resume, advance, catch-up, and reset are available.
+- [x] A free-instance cold start was observed at approximately 20 seconds in practice.
+- [ ] Test a mobile-width viewport.
+- [ ] Confirm an external keep-awake health check on submission day.
 - [ ] Record a video no longer than the official maximum duration.
 - [ ] Verify voiceover and cursor movement match the visible UI.
 - [ ] Add the video URL to the repository and submission.
