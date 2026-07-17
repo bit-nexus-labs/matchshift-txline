@@ -463,11 +463,31 @@ function renderHtml(csrfToken: string): string {
     }
 
     const signedTransaction = await provider.signTransaction(transaction);
-    const simulation = await connection.simulateTransaction(signedTransaction, {
-      commitment: "confirmed",
-      sigVerify: true
+    const simulationResponse = await fetch(config.rpcOrigin, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "simulateTransaction",
+        params: [
+          bytesToBase64(signedTransaction.serialize()),
+          {
+            encoding: "base64",
+            commitment: "confirmed",
+            sigVerify: true
+          }
+        ]
+      })
     });
-    if (simulation.value.err) {
+    const simulationPayload = await simulationResponse
+      .json()
+      .catch(() => undefined);
+    if (
+      !simulationResponse.ok ||
+      simulationPayload?.error ||
+      simulationPayload?.result?.value?.err
+    ) {
       elements.subscribe.disabled = false;
       throw new Error("Solana simulation failed. No transaction was sent.");
     }
