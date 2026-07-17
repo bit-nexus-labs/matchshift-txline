@@ -206,6 +206,7 @@ export async function observeLiveInput(
 
   const controller = new AbortController();
   let observed: MatchRecord | undefined;
+  let observerFailure: LiveObserverError | undefined;
   const timer = setTimeout(
     () => controller.abort("LIVE_OBSERVE_TIMEOUT"),
     observeMs
@@ -224,23 +225,25 @@ export async function observeLiveInput(
     }
 
     const onRecord = async (record: MatchRecord): Promise<void> => {
-      if (observed !== undefined) {
+      if (observed !== undefined || observerFailure !== undefined) {
         return;
       }
       if (
         record.fixtureId !== fixture.fixtureId ||
         !Number.isSafeInteger(record.sourceTimestamp)
       ) {
-        throw new LiveObserverError(
+        observerFailure = new LiveObserverError(
           "NORMALIZED_RECORD_INVALID",
           "The live stream produced an invalid normalized record."
         );
+        controller.abort("LIVE_DATA_RECORD_INVALID");
+        return;
       }
       observed = record;
       controller.abort("LIVE_DATA_RECORD_OBSERVED");
     };
 
-    await Promise.allSettled([
+    const streamResults = await Promise.allSettled([
       options.adapter.runStream("odds", {
         fixtureId: fixture.fixtureId,
         signal: controller.signal,
@@ -254,6 +257,18 @@ export async function observeLiveInput(
         onRecord
       })
     ]);
+    if (observerFailure !== undefined) {
+      throw observerFailure;
+    }
+    const rejected = streamResults.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+    if (rejected !== undefined && !controller.signal.aborted) {
+      throw new LiveObserverError(
+        "STREAM_OBSERVER_FAILED",
+        "A TxLINE live stream failed before observation completed."
+      );
+    }
   } finally {
     clearTimeout(timer);
   }
