@@ -50,11 +50,8 @@ function extractItems(value: unknown): unknown[] {
   return [record];
 }
 
-export function buildReferenceFixturePayload(
-  historicalScores: unknown,
-  fixtureId: string
-): unknown[] {
-  const timestamps = extractItems(historicalScores)
+function referenceScoreTimestamps(historicalScores: unknown): number[] {
+  return extractItems(historicalScores)
     .map((item) => {
       const record = asRecord(item);
       return record === undefined
@@ -63,8 +60,13 @@ export function buildReferenceFixturePayload(
     })
     .filter((value): value is number => value !== undefined)
     .sort((left, right) => left - right);
+}
 
-  const startTimestamp = timestamps[0];
+export function buildReferenceFixturePayload(
+  historicalScores: unknown,
+  fixtureId: string
+): unknown[] {
+  const startTimestamp = referenceScoreTimestamps(historicalScores)[0];
   if (startTimestamp === undefined) {
     throw new TxlineSmokeError(
       "REFERENCE_FIXTURE_TIMESTAMP_MISSING",
@@ -89,6 +91,7 @@ export function createReferenceHistoricalClient(
   fixtureId: string
 ): HistoricalSmokeClient {
   let scorePayloadPromise: Promise<unknown> | undefined;
+  let kickoffOddsRequestClaimed = false;
 
   const loadScores = (): Promise<unknown> => {
     scorePayloadPromise ??= source.fetchScoresHistorical(fixtureId);
@@ -116,9 +119,25 @@ export function createReferenceHistoricalClient(
           "The historical smoke requested an unexpected fixture."
         );
       }
+
+      const useKickoffTimestamp = !kickoffOddsRequestClaimed;
+      kickoffOddsRequestClaimed = true;
+      let effectiveAsOf = asOf;
+      if (useKickoffTimestamp) {
+        const scores = await loadScores();
+        const kickoffTimestamp = referenceScoreTimestamps(scores)[0];
+        if (kickoffTimestamp === undefined) {
+          throw new TxlineSmokeError(
+            "REFERENCE_FIXTURE_TIMESTAMP_MISSING",
+            "The historical score log did not contain a usable source timestamp."
+          );
+        }
+        effectiveAsOf = kickoffTimestamp;
+      }
+
       const payload = await source.fetchOddsSnapshotAt(
         requestedFixtureId,
-        asOf,
+        effectiveAsOf,
         signal
       );
       return adaptHistoricalOddsPayload(payload);
