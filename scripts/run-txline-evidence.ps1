@@ -31,7 +31,7 @@ function Invoke-PnpmStep {
 
     Write-Host ""
     Write-Host "=== $Label ===" -ForegroundColor Cyan
-    & pnpm @Arguments
+    & pnpm @Arguments | ForEach-Object { Write-Host $_ }
     $exitCode = $LASTEXITCODE
     if ($AllowedExitCodes -notcontains $exitCode) {
         throw "$Label failed with exit code $exitCode."
@@ -47,8 +47,16 @@ $environmentNames = @(
     "TXLINE_API_TOKEN",
     "TXLINE_FIXTURE_ID",
     "TXLINE_WALLET_PUBKEY",
-    "TXLINE_SUBSCRIPTION_TX_SIG"
+    "TXLINE_SUBSCRIPTION_TX_SIG",
+    "TXLINE_LIVE_FIXTURE_ID"
 )
+$previousEnvironment = @{}
+foreach ($name in $environmentNames) {
+    $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable(
+        $name,
+        [EnvironmentVariableTarget]::Process
+    )
+}
 
 Push-Location $repoRoot
 try {
@@ -58,7 +66,7 @@ try {
 
     Write-Host "MatchShift TxLINE evidence runner" -ForegroundColor Green
     Write-Host "Network: $Network"
-    Write-Host "The API token is requested as a hidden value and removed from the process environment when the script finishes."
+    Write-Host "The API token is requested as a hidden value and restored or removed when the script finishes."
 
     Invoke-PnpmStep -Label "Install locked dependencies" -Arguments @(
         "install",
@@ -129,7 +137,17 @@ try {
 }
 finally {
     foreach ($name in $environmentNames) {
-        Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+        $previousValue = $previousEnvironment[$name]
+        if ($null -eq $previousValue) {
+            Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+        }
+        else {
+            [Environment]::SetEnvironmentVariable(
+                $name,
+                [string]$previousValue,
+                [EnvironmentVariableTarget]::Process
+            )
+        }
     }
     $plainToken = $null
     $secureToken = $null
