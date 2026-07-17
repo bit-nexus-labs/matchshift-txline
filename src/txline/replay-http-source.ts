@@ -168,7 +168,10 @@ export class TxlineReplayHttpSource {
     );
   }
 
-  async #requestReplay(path: string, externalSignal?: AbortSignal): Promise<unknown> {
+  async #requestReplay(
+    path: string,
+    externalSignal?: AbortSignal
+  ): Promise<unknown> {
     const timeoutSignal = AbortSignal.timeout(this.#requestTimeoutMs);
     const signal =
       externalSignal === undefined
@@ -205,9 +208,10 @@ export class TxlineReplayHttpSource {
       }
 
       const text = await response.text();
+      const contentType = response.headers.get("content-type");
       return parseTxlineReplayResponse(text, {
         status: response.status,
-        contentType: response.headers.get("content-type") ?? undefined
+        ...(contentType === null ? {} : { contentType })
       });
     } catch (error) {
       if (error instanceof TxlineHttpError || error instanceof TxlineCredentialError) {
