@@ -1,9 +1,9 @@
 name: Typecheck diagnostics
 
 on:
-  push:
+  pull_request:
     branches:
-      - txline/integration-smoke-20260717
+      - main
 
 permissions:
   contents: read
@@ -13,10 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Print TypeScript diagnostics
+      - name: Capture TypeScript diagnostics
         shell: bash
         run: |
           corepack enable
           corepack prepare pnpm@11.7.0 --activate
           pnpm install --frozen-lockfile --reporter=silent
-          pnpm typecheck 2>&1 | tail -80
+          pnpm typecheck > typecheck.log 2>&1 || true
+          tail -80 typecheck.log
+      - name: Upload TypeScript diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
+          if-no-files-found: error
+          retention-days: 1
