@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { FetchLike } from "../src/txline/credentials.js";
 import {
   TxlineConfigurationError,
-  TxlineHttpClient
+  TxlineHttpClient,
+  TxlineHttpError
 } from "../src/txline/http-client.js";
 
 type QueuedResponse = Response | Error;
@@ -77,6 +78,54 @@ describe("TxLINE HTTP client", () => {
     );
     expect(headersFor(mock.calls[2]!).get("X-Api-Token")).toBe("api-token");
     expect(headersFor(mock.calls[2]!).get("Accept")).toBe("text/event-stream");
+  });
+
+  it("uses the documented fixture snapshot query and filters dates locally", async () => {
+    const mock = makeFetchQueue([
+      jsonResponse({ token: "jwt-mainnet" }),
+      jsonResponse([])
+    ]);
+    const client = new TxlineHttpClient({
+      apiOrigin: "https://txline.txodds.com",
+      apiToken: "api-token",
+      requestTimeoutMs: 5_000,
+      fetchFn: mock.fetchFn
+    });
+
+    await client.fetchFixturesSnapshotForDay(20_000, 72);
+
+    expect(mock.calls[1]?.url).toBe(
+      "https://txline.txodds.com/api/fixtures/snapshot?competitionId=72"
+    );
+    expect(mock.calls[1]?.url).not.toContain("startEpochDay");
+  });
+
+  it("reports invalid JSON metadata without exposing the response body", async () => {
+    const body = "<html>upstream gateway page</html>";
+    const mock = makeFetchQueue([
+      jsonResponse({ token: "jwt" }),
+      new Response(body, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" }
+      })
+    ]);
+    const client = new TxlineHttpClient({
+      apiOrigin: "https://txline.txodds.com",
+      apiToken: "api-token",
+      requestTimeoutMs: 5_000,
+      fetchFn: mock.fetchFn
+    });
+
+    const error = await client.fetchFixturesSnapshot().catch(
+      (caught: unknown) => caught
+    );
+
+    expect(error).toBeInstanceOf(TxlineHttpError);
+    expect((error as TxlineHttpError).code).toBe("INVALID_JSON");
+    expect((error as Error).message).toContain("status 200");
+    expect((error as Error).message).toContain("content-type text/html");
+    expect((error as Error).message).toContain("bytes ");
+    expect((error as Error).message).not.toContain(body);
   });
 
   it("renews a guest JWT and retries a 401 exactly once", async () => {

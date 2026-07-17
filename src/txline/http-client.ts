@@ -111,11 +111,9 @@ export class TxlineHttpClient {
     competitionId?: string | number,
     signal?: AbortSignal
   ): Promise<unknown> {
+    void startEpochDay;
     const response = await this.request(
-      addOptionalQuery("/api/fixtures/snapshot", {
-        startEpochDay,
-        competitionId
-      }),
+      addOptionalQuery("/api/fixtures/snapshot", { competitionId }),
       "application/json",
       signal
     );
@@ -282,12 +280,18 @@ export class TxlineHttpClient {
   }
 
   private async readJson(response: Response): Promise<unknown> {
+    const text = await response.text();
+    const normalized = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
     try {
-      return await response.json();
+      return JSON.parse(normalized) as unknown;
     } catch {
+      const contentType =
+        response.headers.get("content-type")?.split(";", 1)[0]?.trim() ||
+        "missing";
+      const byteLength = Buffer.byteLength(text, "utf8");
       throw new TxlineHttpError(
         "INVALID_JSON",
-        "TxLINE returned an invalid JSON response."
+        `TxLINE returned an invalid JSON response (status ${response.status}, content-type ${contentType}, bytes ${byteLength}).`
       );
     }
   }
