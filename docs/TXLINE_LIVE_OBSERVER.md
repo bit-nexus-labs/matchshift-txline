@@ -12,7 +12,7 @@ It does not replace the stable synthetic judge demo.
 
 The observer first authenticates through the existing TxLINE client and hydrates a fixture baseline from snapshots. It then opens both odds and score SSE streams and waits for the production adapter to deliver a new normalized record for the selected fixture.
 
-Only an actual SSE data record counts. Opening the stream, receiving HTTP 200, or receiving heartbeat frames does not count as live-input evidence.
+Only an actual SSE data record counts. Opening the stream, receiving HTTP 200, or receiving heartbeat frames does not count as live-input evidence. A normalized record for a different fixture or with an invalid source timestamp is treated as a failure, not as missing coverage.
 
 ## Configuration
 
@@ -44,7 +44,7 @@ TXLINE LIVE INPUT OBSERVER: NOT OBSERVED
 
 `NOT OBSERVED` is not converted into PASS merely because heartbeats were received. The command uses exit code `2` so scripts cannot accidentally treat missing evidence as success.
 
-Configuration, authorization, schema, or baseline failures report `FAIL` and use exit code `1`.
+Configuration, authorization, schema, baseline, or normalized-record validation failures report `FAIL` and use exit code `1`.
 
 ## Data handling
 
