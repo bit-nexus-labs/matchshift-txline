@@ -5,6 +5,7 @@
 - [Architecture](ARCHITECTURE.md) — data flow, ordering domains, session state machine, trust boundaries, and deployment model.
 - [Visibility receipts](VISIBILITY_RECEIPTS.md) — deterministic spoiler-safe state fingerprints and explicit non-proof claims.
 - [TxLINE integration smoke](TXLINE_INTEGRATION_SMOKE.md) — local authenticated historical evidence path, redacted receipt rules, and proof boundaries.
+- [TxLINE Solana provenance](TXLINE_SOLANA_PROVENANCE.md) — public subscription-transaction verification without a private key or API-token linkage claim.
 
 ## Judge and deployment
 
