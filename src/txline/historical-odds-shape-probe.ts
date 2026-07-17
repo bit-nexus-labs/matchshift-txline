@@ -4,6 +4,10 @@ import {
   type FetchLike
 } from "./credentials.js";
 import {
+  adaptHistoricalOddsPayload,
+  classifyHistoricalOddsStructure
+} from "./historical-odds-adapter.js";
+import {
   TxlineConfigurationError,
   TxlineHttpError
 } from "./http-client.js";
@@ -12,8 +16,16 @@ import {
   summarizeHistoricalPayloadShape,
   type HistoricalShapeReport
 } from "./historical-shape-probe.js";
-import { parseSourceTimestamp } from "./normalizer.js";
-import { parseTxlineReplayResponse } from "./replay-http-source.js";
+import {
+  normalizeFixtures,
+  normalizeOddsPayload,
+  parseSourceTimestamp,
+  type NormalizedFixture
+} from "./normalizer.js";
+import {
+  extractTxlineReplayRecords,
+  parseTxlineReplayResponse
+} from "./replay-http-source.js";
 
 const MAX_TIMESTAMP_SCAN_NODES = 250_000;
 
@@ -25,10 +37,29 @@ export interface HistoricalOddsShapeProbeOptions {
   fetchFn?: FetchLike;
 }
 
+export interface HistoricalOddsClassificationReport {
+  directRecords: number;
+  priceNamesArity2: number;
+  priceNamesArity3: number;
+  priceNamesArityOther: number;
+  marketTypePresent: number;
+  alreadySupportedWinnerMarket: number;
+  marketParametersEmpty: number;
+  marketPeriodAccepted: number;
+  explicitWinnerLabels: number;
+  adapterEligible: number;
+  adapterRewritten: number;
+  sourceNormalizedSupported: number;
+  adaptedNormalizedSupported: number;
+  adaptedIgnoredUnsupported: number;
+  adaptedMalformedSupported: number;
+}
+
 export interface HistoricalOddsShapeProbeReport {
   snapshots: readonly {
     label: "early" | "late";
     report: HistoricalShapeReport;
+    classification: HistoricalOddsClassificationReport;
   }[];
 }
 
@@ -102,6 +133,117 @@ export function collectReplayTimestamps(payload: unknown): number[] {
 
   visit(payload);
   return [...timestamps].sort((left, right) => left - right);
+}
+
+function emptyClassificationReport(): HistoricalOddsClassificationReport {
+  return {
+    directRecords: 0,
+    priceNamesArity2: 0,
+    priceNamesArity3: 0,
+    priceNamesArityOther: 0,
+    marketTypePresent: 0,
+    alreadySupportedWinnerMarket: 0,
+    marketParametersEmpty: 0,
+    marketPeriodAccepted: 0,
+    explicitWinnerLabels: 0,
+    adapterEligible: 0,
+    adapterRewritten: 0,
+    sourceNormalizedSupported: 0,
+    adaptedNormalizedSupported: 0,
+    adaptedIgnoredUnsupported: 0,
+    adaptedMalformedSupported: 0
+  };
+}
+
+export function classifyHistoricalOddsPayload(
+  payload: unknown,
+  fixture: NormalizedFixture
+): HistoricalOddsClassificationReport {
+  const report = emptyClassificationReport();
+  const records = extractTxlineReplayRecords(payload, "odds");
+
+  for (const record of records) {
+    report.directRecords += 1;
+    const structure = classifyHistoricalOddsStructure(record);
+    if (structure.priceNamesArity === 2) {
+      report.priceNamesArity2 += 1;
+    } else if (structure.priceNamesArity === 3) {
+      report.priceNamesArity3 += 1;
+    } else {
+      report.priceNamesArityOther += 1;
+    }
+    if (structure.marketTypePresent) {
+      report.marketTypePresent += 1;
+    }
+    if (structure.alreadySupportedWinnerMarket) {
+      report.alreadySupportedWinnerMarket += 1;
+    }
+    if (structure.marketParametersEmpty) {
+      report.marketParametersEmpty += 1;
+    }
+    if (structure.marketPeriodAccepted) {
+      report.marketPeriodAccepted += 1;
+    }
+    if (structure.explicitWinnerLabels) {
+      report.explicitWinnerLabels += 1;
+    }
+    if (structure.adapterEligible) {
+      report.adapterEligible += 1;
+    }
+
+    const normalizationOptions = {
+      fixture,
+      receivedTimestamp: fixture.startTimestamp
+    };
+    const sourceNormalized = normalizeOddsPayload(record, normalizationOptions);
+    if (sourceNormalized.records.length > 0) {
+      report.sourceNormalizedSupported += 1;
+    }
+
+    const adapted = adaptHistoricalOddsPayload(record);
+    if (adapted !== record) {
+      report.adapterRewritten += 1;
+    }
+    const adaptedNormalized = normalizeOddsPayload(adapted, normalizationOptions);
+    if (adaptedNormalized.records.length > 0) {
+      report.adaptedNormalizedSupported += 1;
+    }
+    if (
+      adaptedNormalized.diagnostics.some(
+        (diagnostic) => diagnostic.code === "IGNORED_UNSUPPORTED_ODDS_MARKET"
+      )
+    ) {
+      report.adaptedIgnoredUnsupported += 1;
+    }
+    if (adaptedNormalized.safeHold || adaptedNormalized.issues.length > 0) {
+      report.adaptedMalformedSupported += 1;
+    }
+  }
+
+  return report;
+}
+
+function buildProbeFixture(
+  fixtureId: string | number,
+  startTimestamp: number
+): NormalizedFixture {
+  const fixture = normalizeFixtures([
+    {
+      FixtureId: fixtureId,
+      StartTime: startTimestamp,
+      Participant1: "Reference side A",
+      Participant2: "Reference side B",
+      Participant1IsHome: true,
+      GameState: 1
+    }
+  ])[0];
+  if (fixture === undefined) {
+    throw new TxlineHttpError(
+      "FIXTURE_SCHEMA_INVALID",
+      "The odds classification probe could not construct a local fixture context."
+    );
+  }
+  return fixture;
 }
 
 async function requestReplayPayload(input: {
@@ -203,6 +345,7 @@ export async function probeHistoricalOddsShape(
       "TxLINE historical score replay did not expose timestamps for the odds shape probe."
     );
   }
+  const fixture = buildProbeFixture(options.fixtureId, early);
 
   const requests: Array<{ label: "early" | "late"; asOf: number }> = [
     { label: "early", asOf: early }
@@ -214,6 +357,7 @@ export async function probeHistoricalOddsShape(
   const snapshots = [] as Array<{
     label: "early" | "late";
     report: HistoricalShapeReport;
+    classification: HistoricalOddsClassificationReport;
   }>;
   for (const request of requests) {
     const query = new URLSearchParams({ asOf: String(request.asOf) });
@@ -230,11 +374,34 @@ export async function probeHistoricalOddsShape(
         status: response.status,
         contentType: response.contentType,
         byteLength: response.byteLength
-      })
+      }),
+      classification: classifyHistoricalOddsPayload(response.payload, fixture)
     });
   }
 
   return { snapshots };
+}
+
+function classificationLines(
+  report: HistoricalOddsClassificationReport
+): string[] {
+  return [
+    `classification-direct-records=${report.directRecords}`,
+    `classification-price-names-arity-2=${report.priceNamesArity2}`,
+    `classification-price-names-arity-3=${report.priceNamesArity3}`,
+    `classification-price-names-arity-other=${report.priceNamesArityOther}`,
+    `classification-market-type-present=${report.marketTypePresent}`,
+    `classification-already-supported-winner=${report.alreadySupportedWinnerMarket}`,
+    `classification-empty-market-parameters=${report.marketParametersEmpty}`,
+    `classification-accepted-market-period=${report.marketPeriodAccepted}`,
+    `classification-explicit-winner-labels=${report.explicitWinnerLabels}`,
+    `classification-adapter-eligible=${report.adapterEligible}`,
+    `classification-adapter-rewritten=${report.adapterRewritten}`,
+    `classification-source-normalized-supported=${report.sourceNormalizedSupported}`,
+    `classification-adapted-normalized-supported=${report.adaptedNormalizedSupported}`,
+    `classification-adapted-ignored-unsupported=${report.adaptedIgnoredUnsupported}`,
+    `classification-adapted-malformed-supported=${report.adaptedMalformedSupported}`
+  ];
 }
 
 export function formatHistoricalOddsShapeReport(
@@ -243,7 +410,7 @@ export function formatHistoricalOddsShapeReport(
   const lines = [
     "TXLINE HISTORICAL ODDS SHAPE: PASS",
     `snapshots=${report.snapshots.length}`,
-    "Schema paths only; no provider values, teams, prices, probabilities, tokens, or raw payloads:"
+    "Schema paths and fixed classification counters only; no provider values, teams, prices, probabilities, tokens, or raw payloads:"
   ];
 
   for (const snapshot of report.snapshots) {
@@ -253,6 +420,11 @@ export function formatHistoricalOddsShapeReport(
       .slice(1);
     lines.push(`[${snapshot.label}]`);
     lines.push(...formatted.map((line) => `[${snapshot.label}] ${line}`));
+    lines.push(
+      ...classificationLines(snapshot.classification).map(
+        (line) => `[${snapshot.label}] ${line}`
+      )
+    );
   }
 
   return `${lines.join("\n")}\n`;
