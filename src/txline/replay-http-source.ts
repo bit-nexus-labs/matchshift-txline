@@ -149,7 +149,7 @@ function isScoreUpdateRecord(record: UnknownRecord): boolean {
     hasAnyKey(record, ["fixtureId", "FixtureId"]) &&
     hasAnyKey(record, ["seq", "Seq"]) &&
     hasAnyKey(record, ["ts", "Ts"]) &&
-    hasAnyKey(record, ["scoreSoccer", "ScoreSoccer"])
+    hasAnyKey(record, ["scoreSoccer", "ScoreSoccer", "score", "Score"])
   );
 }
 
@@ -168,6 +168,21 @@ function isOddsUpdateRecord(record: UnknownRecord): boolean {
       "superOddsType"
     ])
   );
+}
+
+function canonicalizeHistoricalScoreRecord(record: UnknownRecord): UnknownRecord {
+  const scoreSoccer =
+    record.scoreSoccer ?? record.ScoreSoccer ?? record.score ?? record.Score;
+  const dataSoccer =
+    record.dataSoccer ?? record.DataSoccer ?? record.data ?? record.Data;
+  const alreadyHasScoreAlias = hasAnyKey(record, ["scoreSoccer", "ScoreSoccer"]);
+  const alreadyHasDataAlias = hasAnyKey(record, ["dataSoccer", "DataSoccer"]);
+
+  return {
+    ...record,
+    ...(alreadyHasScoreAlias || scoreSoccer === undefined ? {} : { scoreSoccer }),
+    ...(alreadyHasDataAlias || dataSoccer === undefined ? {} : { dataSoccer })
+  };
 }
 
 function tryParseNestedJson(value: string): unknown | undefined {
@@ -231,7 +246,9 @@ export function extractTxlineReplayRecords(
         ? isScoreUpdateRecord(record)
         : isOddsUpdateRecord(record);
     if (matches) {
-      records.push(record);
+      records.push(
+        kind === "scores" ? canonicalizeHistoricalScoreRecord(record) : record
+      );
       return;
     }
 
