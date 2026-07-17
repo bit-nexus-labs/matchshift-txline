@@ -120,21 +120,40 @@ describe("TxLINE literal live observer", () => {
     expect(result.receipt).toContain(
       "TXLINE LIVE INPUT OBSERVER: NOT OBSERVED"
     );
+    expect(result.receipt).toContain("Fixture baseline: PASS");
     expect(result.receipt).toContain("SSE data record observed: NO");
     expect(result.receipt).not.toContain("PASS\n\nNetwork");
   });
 
-  it("rejects an auto-discovery window with no nearby fixture", async () => {
+  it("returns NOT_OBSERVED when no nearby fixture can be auto-selected", async () => {
+    const result = await observeLiveInput({
+      network: "mainnet",
+      discoveryClient: discoveryClient(
+        fixturePayload(NOW + 24 * 60 * 60_000)
+      ),
+      adapter: adapterWithRecord(),
+      now: NOW,
+      fixtureWindowHours: 6,
+      observeMs: 1_000,
+      commitSha: "abc123"
+    });
+
+    expect(result.status).toBe("NOT_OBSERVED");
+    expect(result.receipt).toContain("Fixture baseline: NOT RUN");
+    expect(result.receipt).toContain("Literal live input evidence: NOT OBSERVED");
+  });
+
+  it("still rejects an unavailable manual fixture override", async () => {
     await expect(
       observeLiveInput({
         network: "mainnet",
-        discoveryClient: discoveryClient(fixturePayload(NOW + 24 * 60 * 60_000)),
+        discoveryClient: discoveryClient(),
         adapter: adapterWithRecord(),
+        fixtureId: "missing-manual-fixture",
         now: NOW,
-        fixtureWindowHours: 6,
         observeMs: 1_000
       })
-    ).rejects.toMatchObject({ code: "NO_LIVE_CANDIDATE" });
+    ).rejects.toMatchObject({ code: "FIXTURE_NOT_AVAILABLE" });
   });
 
   it("rejects normalized records for a different fixture", async () => {
