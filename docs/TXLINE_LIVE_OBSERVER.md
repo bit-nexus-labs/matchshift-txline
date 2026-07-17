@@ -36,11 +36,13 @@ A real normalized stream record produces:
 TXLINE LIVE INPUT OBSERVER: PASS
 ```
 
-If no normalized record arrives before both streams end or the observation timeout expires, the command reports:
+If no nearby fixture is available, or no normalized record arrives before the observation ends, the command reports:
 
 ```text
 TXLINE LIVE INPUT OBSERVER: NOT OBSERVED
 ```
+
+When no fixture is selected automatically, the receipt records `Fixture baseline: NOT RUN`. An unavailable manual fixture override remains a failure.
 
 `NOT OBSERVED` is not converted into PASS merely because heartbeats were received. The command uses exit code `2` so scripts cannot accidentally treat missing evidence as success.
 
