@@ -79,11 +79,11 @@ Say:
 
 > The explanation layer receives only the already-visible state. Unknown ordering or a score gap fails closed until snapshot recovery.
 
-### Optional closing
+### 60–75 seconds — commercial path and closing
 
 Say:
 
-> The judge path is deterministic and free. TxLINE remains an optional backend adapter for real fixtures, snapshots, and streams.
+> MatchShift can be licensed as a white-label B2B API and SDK for streaming and sports-media platforms, through recurring platform licensing plus usage-based pricing. The judge path remains deterministic and free.
 
 ## Judge self-service flow
 
@@ -101,6 +101,7 @@ A judge should be able to complete the proof without narration:
 - Avoid showing browser bookmarks, personal tabs, accounts, tokens, or Render configuration.
 - Capture the public URL at least once.
 - Include English subtitles when narration is not in English.
+- Include the concise B2B customer, product, and revenue-model sentence.
 - Export a readable 1080p video when possible.
 - Verify the uploaded video from a logged-out or private browser window.
 

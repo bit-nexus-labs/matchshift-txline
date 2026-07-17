@@ -75,6 +75,12 @@ At minute 49, Viewer B receives the goal but not the later odds update. At minut
 
 Controls include personal cursor, one-minute advance, pause, resume, catch-up, and reset.
 
+## Commercial and monetization path
+
+MatchShift is designed first as a white-label B2B API/SDK for OTT streaming platforms, sports broadcasters, sports-media apps, and fan-community products. These customers can connect the server-side visibility gate to their player, match centre, statistics, chat, or odds-context overlays so delayed viewers receive synchronized information instead of live-edge spoilers.
+
+The planned revenue model is a recurring platform licence plus usage-based pricing by active synchronized session or covered event. The initial go-to-market path is a single-tournament integration pilot, followed by expansion across leagues through TxLINE's normalized schema. A later direct-to-consumer premium tier could add private delayed watch rooms and cross-device playback synchronization, while the public judge path remains free and credential-free.
+
 ## Architecture
 
 ```text
@@ -150,4 +156,4 @@ No private trading bot source, exchange secrets, raw TxLINE exports, or copied c
 
 ## Suggested short pitch
 
-> MatchShift is a personal match timeline for delayed viewers. Instead of merely hiding the live score in the interface, it enforces a visibility cursor on the server. Two people can follow the same match at different playback minutes without the delayed viewer receiving future goals, odds changes, or explanations. The judge demo is one click, walletless, loginless, and deterministic, while the optional TxLINE adapter handles official snapshots and streams with fail-closed ordering safety. Authenticated historical integration and subscription provenance were privately verified without publishing provider data; literal live SSE remains honestly recorded as not yet observed.
+> MatchShift is a personal match timeline for delayed viewers. Instead of merely hiding the live score in the interface, it enforces a visibility cursor on the server. Two people can follow the same match at different playback minutes without the delayed viewer receiving future goals, odds changes, or explanations. The judge demo is one click, walletless, loginless, and deterministic, while the optional TxLINE adapter handles official snapshots and streams with fail-closed ordering safety. Authenticated historical integration and subscription provenance were privately verified without publishing provider data; literal live SSE remains honestly recorded as not yet observed. Commercially, MatchShift can be licensed as a white-label B2B API/SDK to streaming and sports-media platforms through recurring platform and usage-based fees.
