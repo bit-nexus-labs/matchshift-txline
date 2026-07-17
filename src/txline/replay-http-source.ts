@@ -9,6 +9,8 @@ import {
 } from "./http-client.js";
 
 const MAX_REPLAY_RESPONSE_BYTES = 16 * 1024 * 1024;
+const MAX_REPLAY_UNWRAP_DEPTH = 12;
+const MAX_REPLAY_UNWRAP_NODES = 250_000;
 
 export interface TxlineReplayHttpSourceOptions {
   apiOrigin: string;
@@ -21,6 +23,9 @@ interface ReplayResponseMetadata {
   status: number;
   contentType?: string;
 }
+
+type ReplayRecordKind = "scores" | "odds";
+type UnknownRecord = Record<string, unknown>;
 
 function normalizedContentType(value: string | undefined): string {
   return value?.split(";", 1)[0]?.trim().toLowerCase() || "missing";
@@ -129,6 +134,124 @@ export function parseTxlineReplayResponse(
   }
 }
 
+function asRecord(value: unknown): UnknownRecord | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as UnknownRecord)
+    : undefined;
+}
+
+function hasAnyKey(record: UnknownRecord, keys: readonly string[]): boolean {
+  return keys.some((key) => Object.hasOwn(record, key));
+}
+
+function isScoreUpdateRecord(record: UnknownRecord): boolean {
+  return (
+    hasAnyKey(record, ["fixtureId", "FixtureId"]) &&
+    hasAnyKey(record, ["seq", "Seq"]) &&
+    hasAnyKey(record, ["ts", "Ts"]) &&
+    hasAnyKey(record, ["scoreSoccer", "ScoreSoccer"])
+  );
+}
+
+function isOddsUpdateRecord(record: UnknownRecord): boolean {
+  return (
+    hasAnyKey(record, ["fixtureId", "FixtureId"]) &&
+    hasAnyKey(record, ["ts", "Ts"]) &&
+    hasAnyKey(record, [
+      "PriceNames",
+      "priceNames",
+      "Prices",
+      "prices",
+      "Pct",
+      "pct",
+      "SuperOddsType",
+      "superOddsType"
+    ])
+  );
+}
+
+function tryParseNestedJson(value: string): unknown | undefined {
+  const trimmed = value.trim();
+  if (
+    trimmed.length < 2 ||
+    !(
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    )
+  ) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+export function extractTxlineReplayRecords(
+  payload: unknown,
+  kind: ReplayRecordKind
+): unknown[] {
+  const records: unknown[] = [];
+  const seen = new WeakSet<object>();
+  let visitedNodes = 0;
+
+  const visit = (value: unknown, depth: number): void => {
+    visitedNodes += 1;
+    if (
+      visitedNodes > MAX_REPLAY_UNWRAP_NODES ||
+      depth > MAX_REPLAY_UNWRAP_DEPTH
+    ) {
+      return;
+    }
+
+    if (typeof value === "string") {
+      const nested = tryParseNestedJson(value);
+      if (nested !== undefined) {
+        visit(nested, depth + 1);
+      }
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item, depth + 1);
+      }
+      return;
+    }
+
+    const record = asRecord(value);
+    if (record === undefined || seen.has(record)) {
+      return;
+    }
+    seen.add(record);
+
+    const matches =
+      kind === "scores"
+        ? isScoreUpdateRecord(record)
+        : isOddsUpdateRecord(record);
+    if (matches) {
+      records.push(record);
+      return;
+    }
+
+    for (const nested of Object.values(record)) {
+      visit(nested, depth + 1);
+    }
+  };
+
+  visit(payload, 0);
+  return records;
+}
+
+function missingReplayRecords(kind: ReplayRecordKind): TxlineHttpError {
+  const label = kind === "scores" ? "score update" : "odds update";
+  return new TxlineHttpError(
+    kind === "scores" ? "SCORE_RECORDS_MISSING" : "ODDS_RECORDS_MISSING",
+    `TxLINE historical replay contained no direct ${label} records after bounded envelope decoding.`
+  );
+}
+
 export class TxlineReplayHttpSource {
   readonly #apiOrigin: string;
   readonly #requestTimeoutMs: number;
@@ -150,10 +273,15 @@ export class TxlineReplayHttpSource {
     fixtureId: string | number,
     signal?: AbortSignal
   ): Promise<unknown> {
-    return this.#requestReplay(
+    const payload = await this.#requestReplay(
       `/api/scores/historical/${encodeURIComponent(String(fixtureId))}`,
       signal
     );
+    const records = extractTxlineReplayRecords(payload, "scores");
+    if (records.length === 0) {
+      throw missingReplayRecords("scores");
+    }
+    return records;
   }
 
   async fetchOddsSnapshotAt(
@@ -162,10 +290,15 @@ export class TxlineReplayHttpSource {
     signal?: AbortSignal
   ): Promise<unknown> {
     const query = new URLSearchParams({ asOf: String(asOf) });
-    return this.#requestReplay(
+    const payload = await this.#requestReplay(
       `/api/odds/snapshot/${encodeURIComponent(String(fixtureId))}?${query.toString()}`,
       signal
     );
+    const records = extractTxlineReplayRecords(payload, "odds");
+    if (records.length === 0) {
+      throw missingReplayRecords("odds");
+    }
+    return records;
   }
 
   async #requestReplay(
