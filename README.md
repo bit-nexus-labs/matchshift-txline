@@ -18,13 +18,17 @@ The deterministic synthetic replay is the guaranteed judge path. An optional bac
 | One-click judge comparison console | Implemented; no login, wallet, payment, or external account |
 | Deterministic synthetic data source | Implemented; default judge mode |
 | Mocked TxLINE snapshots and SSE | Implemented and tested without network access |
-| TxLINE devnet/mainnet transport | Implemented; requires external token/subscription and is not live-smoke-tested here |
+| TxLINE devnet/mainnet transport | Implemented; authenticated historical integration smoke passed privately on mainnet |
 | Official odds and nested score normalization | Implemented with independent feed-ordering domains |
 | Deterministic visibility receipts | Implemented; explicitly not a provider signature or on-chain proof |
+| Private subscription provenance verifier | Implemented and privately verified; not required by the judge path |
+| Literal TxLINE live SSE observation | Not yet observed during the short private observation window; not claimed as PASS |
 | Production container and CI health smoke | Implemented; public HTTPS deployment live on Render |
-| Wallet proof, rewards, betting | Not implemented |
+| Rewards, betting, settlement | Not implemented |
 
 The server does not make a TxLINE request merely because it starts. Synthetic mode requires no credentials. Tests and CI use mocks only and never contact TxLINE.
+
+Authenticated evidence is generated only by an explicit local runner. Its receipts remain private and contain no API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value. On July 17, 2026, the historical TxLINE integration smoke and Solana subscription provenance verification passed on mainnet. A literal normalized SSE record did not arrive during the short live observation window, so live input remains honestly recorded as `NOT OBSERVED`, not `PASS`.
 
 ## Run the judge demo
 
