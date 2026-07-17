@@ -1,4 +1,5 @@
 import { resolveTxlineOrigin, type TxlineNetwork } from "./config.js";
+import { adaptHistoricalOddsPayload } from "./historical-odds-adapter.js";
 import { TxlineHttpClient } from "./http-client.js";
 import { parseSourceTimestamp } from "./normalizer.js";
 import { sanitizedErrorMessage } from "./redaction.js";
@@ -115,7 +116,12 @@ export function createReferenceHistoricalClient(
           "The historical smoke requested an unexpected fixture."
         );
       }
-      return source.fetchOddsSnapshotAt(requestedFixtureId, asOf, signal);
+      const payload = await source.fetchOddsSnapshotAt(
+        requestedFixtureId,
+        asOf,
+        signal
+      );
+      return adaptHistoricalOddsPayload(payload);
     }
   };
 }
