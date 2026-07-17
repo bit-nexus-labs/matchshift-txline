@@ -74,8 +74,25 @@ try {
         "--reporter=silent"
     )
 
-    $secureToken = Read-Host "TxLINE API token" -AsSecureString
+    $secureToken = Read-Host "TxLINE API token (press Enter if you need to create one)" -AsSecureString
     $plainToken = ConvertFrom-SecureStringPlainText -SecureValue $secureToken
+
+    if ([string]::IsNullOrWhiteSpace($plainToken)) {
+        if ($Network -ne "mainnet") {
+            throw "The Phantom activation helper currently supports the mainnet free tier only."
+        }
+
+        $startActivation = Read-Host "Start the localhost Phantom activation helper now? [Y/n]"
+        if ([string]::IsNullOrWhiteSpace($startActivation) -or $startActivation.Trim().ToLowerInvariant() -in @("y", "yes")) {
+            Write-Host "A localhost browser page will open. Connect only the dedicated MatchShift Phantom wallet." -ForegroundColor DarkYellow
+            Invoke-PnpmStep -Label "Create TxLINE API token with Phantom" -Arguments @(
+                "txline:activate"
+            )
+            $secureToken = Read-Host "Paste the new TxLINE API token" -AsSecureString
+            $plainToken = ConvertFrom-SecureStringPlainText -SecureValue $secureToken
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($plainToken)) {
         throw "The TxLINE API token cannot be empty."
     }
