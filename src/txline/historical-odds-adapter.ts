@@ -81,14 +81,13 @@ function classifyWinnerLabels(value: unknown): WinnerLabelClassification {
     return { explicit: false, namedSidesWithMiddleDraw: false };
   }
 
+  const drawPresent = labels.some((label) => DRAW_LABELS.has(label));
   const direct =
-    labels.includes("home") &&
-    DRAW_LABELS.has(labels[1] ?? "") &&
-    labels.includes("away");
+    labels.includes("home") && drawPresent && labels.includes("away");
   const participantBased =
-    (labels[0] === "1" || labels[0] === "participant1") &&
-    DRAW_LABELS.has(labels[1] ?? "") &&
-    (labels[2] === "2" || labels[2] === "participant2");
+    (labels.includes("1") || labels.includes("participant1")) &&
+    drawPresent &&
+    (labels.includes("2") || labels.includes("participant2"));
   const explicit = direct || participantBased;
   const namedSidesWithMiddleDraw =
     !explicit &&
