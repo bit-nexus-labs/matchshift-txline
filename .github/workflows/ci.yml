@@ -19,6 +19,20 @@ jobs:
       - run: pnpm install --frozen-lockfile --reporter=silent
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Parse Windows evidence runner
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "./scripts/run-txline-evidence.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
       - run: pnpm build
 
   container:
