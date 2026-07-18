@@ -60,8 +60,8 @@ try {
     $env:TXLINE_NETWORK = $Network
     $env:TXLINE_API_TOKEN = $plainToken
     $env:TXLINE_LIVE_OBSERVE_MS = [string]($Minutes * 60 * 1000)
-    $env:TXLINE_LIVE_SNAPSHOT_POLL_MS = "5000"
-    $env:TXLINE_LIVE_SNAPSHOT_MAX_FIXTURES = "8"
+    $env:TXLINE_LIVE_SNAPSHOT_POLL_MS = "10000"
+    $env:TXLINE_LIVE_SNAPSHOT_MAX_FIXTURES = "6"
 
     & pnpm "txline:live-snapshot-observe"
     $exitCode = $LASTEXITCODE
