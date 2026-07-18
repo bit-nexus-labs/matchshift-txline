@@ -81,12 +81,12 @@ function recordSignature(record: MatchRecord): string {
   ].join("|");
 }
 
-function matchSignatures(match: MatchDefinition): {
+export function matchSnapshotSignatures(match: MatchDefinition): {
   scores: string;
   odds: string;
 } {
   const scores = match.records
-    .filter((record) => record.kind === "score")
+    .filter((record) => record.kind === "event" || record.kind === "recovery")
     .map(recordSignature)
     .sort()
     .join("\n");
@@ -215,10 +215,10 @@ export async function observeLiveSnapshotChanges(
     reconnectMaxMs
   };
   const adapters = new Map(
-    fixtureIds.map((fixtureId) => [
-      fixtureId,
-      new TxlineAdapter({ config, client })
-    ])
+    fixtureIds.map(
+      (fixtureId) =>
+        [fixtureId, new TxlineAdapter({ config, client })] as const
+    )
   );
   const baselines = new Map<string, { scores: string; odds: string }>();
   const deadline = dependencies.now() + observeMs;
@@ -236,7 +236,7 @@ export async function observeLiveSnapshotChanges(
             ? undefined
             : competitionId
         );
-        return { fixtureId, signatures: matchSignatures(match) };
+        return { fixtureId, signatures: matchSnapshotSignatures(match) };
       })
     );
 
