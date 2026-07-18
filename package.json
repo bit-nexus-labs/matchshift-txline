@@ -18,7 +18,8 @@
     "txline:probe-shape": "tsx src/txline/historical-shape-probe-cli.ts",
     "txline:probe-odds-shape": "tsx src/txline/historical-odds-shape-probe-cli.ts",
     "txline:provenance": "tsx src/txline/solana-provenance-cli.ts",
-    "txline:live-observe": "tsx src/txline/live-observer-window-cli.ts"
+    "txline:live-observe": "tsx src/txline/live-observer-window-cli.ts",
+    "txline:live-snapshot-observe": "tsx src/txline/live-snapshot-observer-cli.ts"
   },
   "dependencies": {
     "fastify": "^5.0.0",
