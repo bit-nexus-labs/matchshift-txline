@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   observeLiveInputForWindow,
   type LiveObserverWindowDependencies
-} from "../src/txline/live-observer-window-cli.js";
+} from "../src/txline/live-observer-window.js";
 import type { LiveObserverResult } from "../src/txline/live-observer.js";
 
 function result(status: LiveObserverResult["status"]): LiveObserverResult {
