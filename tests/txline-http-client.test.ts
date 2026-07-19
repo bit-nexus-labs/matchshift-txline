@@ -40,6 +40,18 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function sseResponse(frames: readonly unknown[]): Response {
+  const body = [
+    ": heartbeat",
+    "",
+    ...frames.flatMap((frame) => [`data: ${JSON.stringify(frame)}`, ""])
+  ].join("\n");
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream; charset=utf-8" }
+  });
+}
+
 function headersFor(call: FetchCall): Headers {
   return new Headers(call.init?.headers);
 }
@@ -80,10 +92,26 @@ describe("TxLINE HTTP client", () => {
     expect(headersFor(mock.calls[2]!).get("Accept")).toBe("text/event-stream");
   });
 
-  it("sends the documented startEpochDay fixture snapshot query", async () => {
+  it("sends startEpochDay and accepts a fixture snapshot returned as SSE", async () => {
+    const firstFixture = {
+      FixtureId: 1001,
+      StartTime: "2026-07-18T19:00:00.000Z",
+      Participant1: "France",
+      Participant2: "England",
+      Participant1IsHome: true,
+      GameState: 5
+    };
+    const secondFixture = {
+      FixtureId: 1002,
+      StartTime: "2026-07-18T22:00:00.000Z",
+      Participant1: "Argentina",
+      Participant2: "Spain",
+      Participant1IsHome: false,
+      GameState: 5
+    };
     const mock = makeFetchQueue([
       jsonResponse({ token: "jwt-mainnet" }),
-      jsonResponse([])
+      sseResponse([[firstFixture], secondFixture])
     ]);
     const client = new TxlineHttpClient({
       apiOrigin: "https://txline.txodds.com",
@@ -92,11 +120,12 @@ describe("TxLINE HTTP client", () => {
       fetchFn: mock.fetchFn
     });
 
-    await client.fetchFixturesSnapshotForDay(20_000, 72);
+    const result = await client.fetchFixturesSnapshotForDay(20_652, 72);
 
     expect(mock.calls[1]?.url).toBe(
-      "https://txline.txodds.com/api/fixtures/snapshot?startEpochDay=20000&competitionId=72"
+      "https://txline.txodds.com/api/fixtures/snapshot?startEpochDay=20652&competitionId=72"
     );
+    expect(result).toEqual([firstFixture, secondFixture]);
   });
 
   it("reports invalid JSON metadata without exposing the response body", async () => {
