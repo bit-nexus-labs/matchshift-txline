@@ -35,7 +35,7 @@ function scoreRecord(
     Seq: seq,
     Ts: timestamp,
     Action: seq === 1 ? "kickoff" : "goal",
-    Score: {
+    scoreSoccer: {
       Participant1: { Total: { Goals: home } },
       Participant2: { Total: { Goals: away } }
     }
