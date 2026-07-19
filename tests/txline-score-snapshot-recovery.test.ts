@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { FetchLike } from "../src/txline/credentials.js";
 import { TxlineHttpError } from "../src/txline/http-client.js";
 import type { NormalizedFixture } from "../src/txline/normalizer.js";
 import {
@@ -119,7 +118,13 @@ describe("historical score snapshot recovery", () => {
         expect.objectContaining({ Seq: 4 })
       ])
     );
-    expect(requested.some((timestamp) => timestamp > KICKOFF + 2 * 60_000 && timestamp < KICKOFF + 5 * 60_000)).toBe(true);
+    expect(
+      requested.some(
+        (timestamp) =>
+          timestamp > KICKOFF + 2 * 60_000 &&
+          timestamp < KICKOFF + 5 * 60_000
+      )
+    ).toBe(true);
   });
 
   it("fails closed when adaptive snapshots still skip a score state", async () => {
