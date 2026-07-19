@@ -60,12 +60,18 @@ export interface RecoveryRecord extends BaseMatchRecord {
 
 export type MatchRecord = MatchEventRecord | OddsRecord | RecoveryRecord;
 
+export interface MatchDisplay {
+  homeLabel: string;
+  awayLabel: string;
+}
+
 export interface MatchDefinition {
   fixtureId: string;
   label: string;
   provenance: Provenance;
   kickoffTimestamp: number;
   liveEdgeTimestamp: number;
+  display?: MatchDisplay;
   /** Synthetic Task 01 prefix baseline only. TxLINE uses per-feed metadata. */
   expectedFirstSequence?: number;
   records: readonly MatchRecord[];

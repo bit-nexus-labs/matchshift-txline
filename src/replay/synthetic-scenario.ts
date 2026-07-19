@@ -65,6 +65,10 @@ export const SYNTHETIC_MATCH: MatchDefinition = {
   provenance: "SYNTHETIC",
   kickoffTimestamp: T0,
   liveEdgeTimestamp: T0 + minute(52),
+  display: {
+    homeLabel: "Northbridge",
+    awayLabel: "Southport"
+  },
   expectedFirstSequence: 1,
   records: SYNTHETIC_RECORDS
 };
