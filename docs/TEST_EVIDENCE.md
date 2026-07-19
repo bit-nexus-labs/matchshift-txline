@@ -11,6 +11,7 @@ This document records the reviewed milestone chain. GitHub remains the source of
 | Task 03 — judge comparison UI | `#3` | `dd16a128f9aa06c175c0f8a300480826e65465f9` | Frozen install, typecheck, tests, build; embedded page script syntax test |
 | Task 04 — deployment readiness | `#4` | `8885d2b99da6995b2e3b639ae5c6455e1e045f63` | Code pipeline plus Docker build and live `/health` smoke test |
 | Task 05 — visibility receipts | `#5` | `b56ff5f6076713ca6e45c0829fa6b1722d0ec06c` | Code pipeline, receipt isolation tests, Docker build, live health smoke |
+| TxLINE live evidence hardening | `#32` | `5dc070df77609fc4dfa58474bb9e460aae3eede4` | Full-window retries, transport observer, privacy tests, full CI and container health smoke |
 
 ## Core spoiler-boundary evidence
 
@@ -41,17 +42,21 @@ Mocked official-shape tests verify:
 - score and odds ordering domains remain independent;
 - real score gaps require snapshot recovery;
 - exact duplicates are removed while amendments remain;
-- configured authorization values do not appear in tested status errors.
+- configured authorization values do not appear in tested status errors;
+- the transport-only observer accepts structurally valid odds events without broadening the product semantic normalizer;
+- private transport receipts do not expose fixture IDs, event IDs, credentials, or provider payloads.
 
 ## Authenticated private evidence
 
-An explicit local evidence runner was completed against TxLINE mainnet on July 17, 2026:
+Explicit local evidence runners completed against TxLINE mainnet:
 
-- historical fixture, score, and supported full-match winner odds integration smoke: `PASS`;
-- Solana subscription provenance verification using public transaction data: `PASS`;
-- literal normalized live SSE data record: `NOT OBSERVED` during the short observation window.
+- historical fixture, score, and supported full-match winner odds integration smoke on July 17, 2026: `PASS`;
+- Solana subscription provenance verification using public transaction data on July 17, 2026: `PASS`;
+- authenticated `/api/odds/stream` transport on July 19, 2026: `PASS` after a structurally valid non-heartbeat odds event arrived;
+- literal normalized live SSE data record: `NOT OBSERVED`;
+- normalized live snapshot change: `NOT OBSERVED`.
 
-`NOT OBSERVED` is a distinct non-pass outcome rather than a failure or a claimed live proof. The runner completed and wrote private allowlisted receipts. No API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value was committed or published.
+The transport result is a distinct transport-level proof. It does not claim that the received event passed MatchShift's narrower full-match winner semantic normalizer. `NOT OBSERVED` remains a distinct non-pass outcome rather than a failure or a claimed semantic live proof. The runners wrote private allowlisted receipts. No API token, guest JWT, wallet secret, raw provider payload, fixture identifier, team name, score, odds, or probability value was committed or published.
 
 ## Judge UI evidence
 
@@ -90,6 +95,5 @@ The CI container job:
 Before submission, record:
 
 - deployed commit SHA or immutable image reference;
-- incognito-browser smoke result;
 - final demo video URL;
 - final submission timestamp and human submitter confirmation.
