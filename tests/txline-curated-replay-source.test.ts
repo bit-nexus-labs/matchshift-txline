@@ -56,7 +56,7 @@ function nestedHistoricalScores(): string {
 }
 
 describe("curated replay authenticated source", () => {
-  it("unwraps nested historical score SSE before baseline normalization", async () => {
+  it("unwraps and merges fixture-tail plus bucketed historical score SSE", async () => {
     let authCount = 0;
     const calls: string[] = [];
     const fetchFn: FetchLike = async (input) => {
@@ -81,6 +81,10 @@ describe("curated replay authenticated source", () => {
         );
       }
       if (url.pathname === "/api/scores/historical/private-fixture") {
+        return sseResponse(nestedHistoricalScores());
+      }
+      if (url.pathname === "/api/scores/updates/20652/21/0") {
+        expect(url.searchParams.get("fixtureId")).toBe("private-fixture");
         return sseResponse(nestedHistoricalScores());
       }
       if (url.pathname === "/api/odds/snapshot/private-fixture") {
@@ -132,7 +136,7 @@ describe("curated replay authenticated source", () => {
       commitSha: "test-commit"
     });
 
-    expect(authCount).toBe(2);
+    expect(authCount).toBe(3);
     expect(result.scoreRecordCount).toBe(2);
     expect(result.oddsRecordCount).toBeGreaterThan(0);
     expect(result.match.records.some((record) => record.kind === "recovery")).toBe(
@@ -142,6 +146,9 @@ describe("curated replay authenticated source", () => {
       true
     );
     expect(calls.some((url) => url.includes("/api/scores/historical/"))).toBe(
+      true
+    );
+    expect(calls.some((url) => url.includes("/api/scores/updates/20652/21/0"))).toBe(
       true
     );
     const generated = await readFile(outputPath, "utf8");
