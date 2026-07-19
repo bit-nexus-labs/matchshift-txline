@@ -111,9 +111,11 @@ export class TxlineHttpClient {
     competitionId?: string | number,
     signal?: AbortSignal
   ): Promise<unknown> {
-    void startEpochDay;
     const response = await this.request(
-      addOptionalQuery("/api/fixtures/snapshot", { competitionId }),
+      addOptionalQuery("/api/fixtures/snapshot", {
+        startEpochDay,
+        competitionId
+      }),
       "application/json",
       signal
     );
