@@ -9,6 +9,7 @@
 - [TxLINE Solana provenance](TXLINE_SOLANA_PROVENANCE.md) — public subscription-transaction verification without a private key or API-token linkage claim.
 - [TxLINE live observer](TXLINE_LIVE_OBSERVER.md) — literal SSE data-record evidence that rejects heartbeat-only connections.
 - [TxLINE live transport evidence](TXLINE_LIVE_TRANSPORT_EVIDENCE.md) — privacy-safe authenticated mainnet odds SSE transport `PASS` and its explicit non-semantic boundary.
+- [TxLINE curated real replay](TXLINE_CURATED_REAL_REPLAY.md) — one completed authenticated fixture converted into an allowlisted MatchShift replay module without provider identifiers or raw payloads.
 - [TxLINE endpoints and feedback](TXLINE_ENDPOINTS_AND_FEEDBACK.md) — exact HTTP surfaces used and specific developer-experience feedback from the integration.
 - [Windows evidence runner](TXLINE_EVIDENCE_WINDOWS.md) — one safe PowerShell workflow for the three manual evidence commands.
 
