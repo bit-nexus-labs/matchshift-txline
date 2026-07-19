@@ -1,22 +1,28 @@
 import type { CuratedReplayExportClient } from "./curated-replay-exporter.js";
 import {
+  assertCompleteScoreBaseline,
   buildScoreHistoryBuckets,
-  createCuratedReplaySource,
   mergeDirectScoreRecords,
   type CuratedReplaySourceOptions
 } from "./curated-replay-source.js";
-import { TxlineHttpError } from "./http-client.js";
+import { TxlineHttpClient, TxlineHttpError } from "./http-client.js";
 import {
   normalizeFixtures,
   parseSourceTimestamp,
   type NormalizedFixture
 } from "./normalizer.js";
 import { TxlineReplayHttpSource } from "./replay-http-source.js";
+import { recoverOpeningScorePrefixFromGoalActions } from "./score-opening-prefix-recovery.js";
 import {
   buildDisclosedPartialOpeningHistory,
   readPartialOpeningCoverage,
   type PartialOpeningCoverageMarker
 } from "./score-partial-opening.js";
+import {
+  assertCompleteScoreProgression,
+  recoverCompleteScoreHistoryFromSnapshots
+} from "./score-snapshot-recovery.js";
+import { TxlineScoreSnapshotSource } from "./score-snapshot-source.js";
 import { TxlineScoreHistoryWindowSource } from "./score-history-window-source.js";
 
 function directTimestamp(value: unknown): number | undefined {
@@ -27,6 +33,32 @@ function directTimestamp(value: unknown): number | undefined {
   return parseSourceTimestamp(record.ts ?? record.Ts);
 }
 
+function isHistoryIncomplete(error: unknown): error is TxlineHttpError {
+  return (
+    error instanceof TxlineHttpError &&
+    ["SCORE_HISTORY_INCOMPLETE", "SCORE_OPENING_PREFIX_INCOMPLETE"].includes(
+      error.code
+    )
+  );
+}
+
+function assertCompleteHistory(
+  records: readonly unknown[],
+  fixture: NormalizedFixture
+): void {
+  assertCompleteScoreBaseline(records, fixture);
+  assertCompleteScoreProgression(records, fixture);
+}
+
+function earliestTimestamp(records: readonly unknown[]): number | undefined {
+  return records.reduce<number | undefined>((current, item) => {
+    const timestamp = directTimestamp(item);
+    return timestamp === undefined || (current !== undefined && current <= timestamp)
+      ? current
+      : timestamp;
+  }, undefined);
+}
+
 export interface CuratedPartialReplaySource extends CuratedReplayExportClient {
   getScoreCoverage(): PartialOpeningCoverageMarker | undefined;
 }
@@ -34,9 +66,10 @@ export interface CuratedPartialReplaySource extends CuratedReplayExportClient {
 export function createCuratedPartialReplaySource(
   options: CuratedReplaySourceOptions
 ): CuratedPartialReplaySource {
-  const strictSource = createCuratedReplaySource(options);
+  const fixtureClient = new TxlineHttpClient(options);
   const replaySource = new TxlineReplayHttpSource(options);
   const scoreWindowSource = new TxlineScoreHistoryWindowSource(options);
+  const scoreSnapshotSource = new TxlineScoreSnapshotSource(options);
   const fixturesById = new Map<string, NormalizedFixture>();
   const oddsAnchorByFixture = new Map<string, number>();
   const anchoredOddsFixtures = new Set<string>();
@@ -51,7 +84,10 @@ export function createCuratedPartialReplaySource(
   return {
     getScoreCoverage: () => scoreCoverage,
     fetchFixturesSnapshot: async (competitionId, signal) => {
-      const payload = await strictSource.fetchFixturesSnapshot(competitionId, signal);
+      const payload = await fixtureClient.fetchFixturesSnapshot(
+        competitionId,
+        signal
+      );
       rememberFixtures(payload);
       return payload;
     },
@@ -60,7 +96,7 @@ export function createCuratedPartialReplaySource(
       competitionId,
       signal
     ) => {
-      const payload = await strictSource.fetchFixturesSnapshotForDay(
+      const payload = await fixtureClient.fetchFixturesSnapshotForDay(
         startEpochDay,
         competitionId,
         signal
@@ -70,32 +106,12 @@ export function createCuratedPartialReplaySource(
     },
     fetchScoresHistorical: async (fixtureId, signal) => {
       scoreCoverage = undefined;
-      try {
-        const payload = await strictSource.fetchScoresHistorical(fixtureId, signal);
-        const items = Array.isArray(payload) ? payload : [payload];
-        const earliest = items.reduce<number | undefined>((current, item) => {
-          const timestamp = directTimestamp(item);
-          return timestamp === undefined || (current !== undefined && current <= timestamp)
-            ? current
-            : timestamp;
-        }, undefined);
-        if (earliest !== undefined) {
-          oddsAnchorByFixture.set(String(fixtureId), earliest);
-        }
-        anchoredOddsFixtures.delete(String(fixtureId));
-        return payload;
-      } catch (error) {
-        if (!(error instanceof TxlineHttpError) || error.code !== "SCORE_HISTORY_INCOMPLETE") {
-          throw error;
-        }
-      }
-
       const fixtureKey = String(fixtureId);
       const fixture = fixturesById.get(fixtureKey);
       if (fixture === undefined) {
         throw new TxlineHttpError(
           "SCORE_PARTIAL_OPENING_UNAVAILABLE",
-          "Partial opening fallback had no normalized fixture context."
+          "Partial opening replay source had no normalized fixture context."
         );
       }
 
@@ -120,22 +136,60 @@ export function createCuratedPartialReplaySource(
           ))
         );
       }
-      const merged = mergeDirectScoreRecords([...bucketRecords, ...tailItems]);
-      const partial = buildDisclosedPartialOpeningHistory(merged, fixture);
-      const coverage = readPartialOpeningCoverage(partial);
-      if (coverage === undefined) {
-        throw new TxlineHttpError(
-          "SCORE_PARTIAL_OPENING_UNAVAILABLE",
-          "Partial opening fallback did not produce its required disclosure marker."
-        );
+      let records = mergeDirectScoreRecords([...bucketRecords, ...tailItems]);
+
+      try {
+        assertCompleteHistory(records, fixture);
+      } catch (historyError) {
+        if (!isHistoryIncomplete(historyError)) {
+          throw historyError;
+        }
+        try {
+          records = recoverOpeningScorePrefixFromGoalActions(records, fixture);
+          assertCompleteHistory(records, fixture);
+        } catch (openingError) {
+          if (!isHistoryIncomplete(openingError)) {
+            throw openingError;
+          }
+          try {
+            records = await recoverCompleteScoreHistoryFromSnapshots({
+              fixtureId,
+              fixture,
+              startTimestamp: fixture.startTimestamp,
+              endTimestamp: latestTimestamp,
+              baseRecords: records,
+              fetchSnapshotAt: (snapshotFixtureId, asOf, snapshotSignal) =>
+                scoreSnapshotSource.fetchSnapshotAt(
+                  snapshotFixtureId,
+                  asOf,
+                  snapshotSignal
+                ),
+              ...(signal === undefined ? {} : { signal })
+            });
+            assertCompleteHistory(records, fixture);
+          } catch (snapshotError) {
+            if (!isHistoryIncomplete(snapshotError)) {
+              throw snapshotError;
+            }
+            records = buildDisclosedPartialOpeningHistory(records, fixture);
+            scoreCoverage = readPartialOpeningCoverage(records);
+            if (scoreCoverage === undefined) {
+              throw new TxlineHttpError(
+                "SCORE_PARTIAL_OPENING_UNAVAILABLE",
+                "Partial opening fallback did not produce its required disclosure marker."
+              );
+            }
+          }
+        }
       }
-      scoreCoverage = coverage;
-      oddsAnchorByFixture.set(
-        fixtureKey,
-        coverage.providerScoreStartTimestamp
-      );
+
+      const anchor =
+        scoreCoverage?.providerScoreStartTimestamp ?? earliestTimestamp(records);
+      if (anchor !== undefined) {
+        oddsAnchorByFixture.set(fixtureKey, anchor);
+      }
       anchoredOddsFixtures.delete(fixtureKey);
-      return partial;
+      return records;
     },
     fetchOddsSnapshotAt: async (fixtureId, asOf, signal) => {
       const fixtureKey = String(fixtureId);
