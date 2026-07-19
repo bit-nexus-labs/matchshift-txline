@@ -57,6 +57,9 @@ describe("curated replay judge routes", () => {
     expect(response.body).toContain('style="display:none');
     expect(response.body).toContain('api("/api/demo/curated/status")');
     expect(response.body).toContain('model.fixture.homeLabel + " goal"');
+    expect(response.body).toContain('scoreHistory === "PARTIAL_OPENING"');
+    expect(response.body).toContain("local 0-0 kickoff baseline");
+    expect(response.body).toContain("disclosed partial TxLINE replay ready");
     const script = response.body.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeDefined();
     expect(() => new Function(script ?? "")).not.toThrow();
