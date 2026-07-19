@@ -283,17 +283,29 @@ export class TxlineHttpClient {
 
   private async readJson(response: Response): Promise<unknown> {
     const text = await response.text();
+    const contentType = response.headers.get("content-type");
+    const normalizedContentType =
+      contentType?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
+    if (normalizedContentType === "text/event-stream") {
+      const { parseTxlineReplayResponse } = await import(
+        "./replay-http-source.js"
+      );
+      return parseTxlineReplayResponse(text, {
+        status: response.status,
+        ...(contentType === null ? {} : { contentType })
+      });
+    }
+
     const normalized = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
     try {
       return JSON.parse(normalized) as unknown;
     } catch {
-      const contentType =
-        response.headers.get("content-type")?.split(";", 1)[0]?.trim() ||
-        "missing";
+      const reportedContentType =
+        contentType?.split(";", 1)[0]?.trim() || "missing";
       const byteLength = Buffer.byteLength(text, "utf8");
       throw new TxlineHttpError(
         "INVALID_JSON",
-        `TxLINE returned an invalid JSON response (status ${response.status}, content-type ${contentType}, bytes ${byteLength}).`
+        `TxLINE returned an invalid JSON response (status ${response.status}, content-type ${reportedContentType}, bytes ${byteLength}).`
       );
     }
   }
