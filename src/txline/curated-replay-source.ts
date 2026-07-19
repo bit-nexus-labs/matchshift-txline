@@ -18,6 +18,7 @@ export interface CuratedReplaySourceOptions {
 }
 
 const FIVE_MINUTES_MS = 5 * 60_000;
+const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 const MAX_SCORE_HISTORY_BUCKETS = 72;
 
@@ -55,13 +56,13 @@ function directScoreTimestamp(value: unknown): number | undefined {
 function directScoreOrder(left: unknown, right: unknown): number {
   const leftRecord = asRecord(left) ?? {};
   const rightRecord = asRecord(right) ?? {};
-  const leftTimestamp = directScoreTimestamp(left) ?? Number.MAX_SAFE_INTEGER;
-  const rightTimestamp = directScoreTimestamp(right) ?? Number.MAX_SAFE_INTEGER;
   const leftSequence =
     readInteger(leftRecord, ["seq", "Seq"]) ?? Number.MAX_SAFE_INTEGER;
   const rightSequence =
     readInteger(rightRecord, ["seq", "Seq"]) ?? Number.MAX_SAFE_INTEGER;
-  return leftTimestamp - rightTimestamp || leftSequence - rightSequence;
+  const leftTimestamp = directScoreTimestamp(left) ?? Number.MAX_SAFE_INTEGER;
+  const rightTimestamp = directScoreTimestamp(right) ?? Number.MAX_SAFE_INTEGER;
+  return leftSequence - rightSequence || leftTimestamp - rightTimestamp;
 }
 
 function directScoreIdentity(value: unknown): string {
@@ -136,33 +137,66 @@ export function mergeDirectScoreRecords(
   return [...unique.values()].sort(directScoreOrder);
 }
 
+function relativeMinuteLabel(timestamp: number, kickoffTimestamp: number): string {
+  const minutes = (timestamp - kickoffTimestamp) / MINUTE_MS;
+  const sign = minutes >= 0 ? "+" : "";
+  return `${sign}${minutes.toFixed(1)}m`;
+}
+
 export function assertCompleteScoreBaseline(
   records: readonly unknown[],
   fixture: NormalizedFixture
 ): void {
-  const first = [...records].sort(directScoreOrder)[0];
-  if (first === undefined) {
+  const ordered = [...records].sort(directScoreOrder);
+  if (ordered.length === 0) {
     throw new TxlineHttpError(
       "SCORE_HISTORY_INCOMPLETE",
       "Historical score window contained no direct score records."
     );
   }
-  const normalized = normalizeScorePayload(first, {
-    fixture,
-    receivedTimestamp: fixture.startTimestamp,
-    snapshot: true
-  });
-  const recovery = normalized.records.find((record) => record.kind === "recovery");
-  if (
-    recovery === undefined ||
-    recovery.snapshot.score.home !== 0 ||
-    recovery.snapshot.score.away !== 0
-  ) {
+
+  let directKickoffObserved = false;
+  for (const item of ordered) {
+    const eventResult = normalizeScorePayload(item, {
+      fixture,
+      receivedTimestamp: fixture.startTimestamp
+    });
+    if (
+      eventResult.records.some(
+        (record) => record.kind === "event" && record.eventType === "KICKOFF"
+      )
+    ) {
+      directKickoffObserved = true;
+    }
+
+    const snapshotResult = normalizeScorePayload(item, {
+      fixture,
+      receivedTimestamp: fixture.startTimestamp,
+      snapshot: true
+    });
+    const recovery = snapshotResult.records.find(
+      (record) => record.kind === "recovery"
+    );
+    if (recovery === undefined) {
+      continue;
+    }
+    if (
+      recovery.snapshot.score.home === 0 &&
+      recovery.snapshot.score.away === 0
+    ) {
+      return;
+    }
+
     throw new TxlineHttpError(
       "SCORE_HISTORY_INCOMPLETE",
-      "Historical score window did not begin with a trusted 0-0 baseline."
+      `Historical score window first trusted score was ${recovery.snapshot.score.home}-${recovery.snapshot.score.away} at ${relativeMinuteLabel(recovery.sourceTimestamp, fixture.startTimestamp)}; direct kickoff observed: ${directKickoffObserved ? "YES" : "NO"}; direct records: ${ordered.length}.`
     );
   }
+
+  throw new TxlineHttpError(
+    "SCORE_HISTORY_INCOMPLETE",
+    `Historical score window contained no trusted nested-score baseline; direct kickoff observed: ${directKickoffObserved ? "YES" : "NO"}; direct records: ${ordered.length}.`
+  );
 }
 
 function earliestDirectScoreTimestamp(payload: unknown): number | undefined {
