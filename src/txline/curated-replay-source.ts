@@ -8,6 +8,7 @@ import {
   type NormalizedFixture
 } from "./normalizer.js";
 import { TxlineReplayHttpSource } from "./replay-http-source.js";
+import { recoverOpeningScorePrefixFromGoalActions } from "./score-opening-prefix-recovery.js";
 import {
   assertCompleteScoreProgression,
   recoverCompleteScoreHistoryFromSnapshots
@@ -218,6 +219,23 @@ function earliestDirectScoreTimestamp(payload: unknown): number | undefined {
   return earliest;
 }
 
+function isHistoryIncomplete(error: unknown): error is TxlineHttpError {
+  return (
+    error instanceof TxlineHttpError &&
+    ["SCORE_HISTORY_INCOMPLETE", "SCORE_OPENING_PREFIX_INCOMPLETE"].includes(
+      error.code
+    )
+  );
+}
+
+function assertCompleteHistory(
+  records: readonly unknown[],
+  fixture: NormalizedFixture
+): void {
+  assertCompleteScoreBaseline(records, fixture);
+  assertCompleteScoreProgression(records, fixture);
+}
+
 export function createCuratedReplaySource(
   options: CuratedReplaySourceOptions
 ): CuratedReplayExportClient {
@@ -284,31 +302,50 @@ export function createCuratedReplaySource(
         records = mergeDirectScoreRecords([...bucketRecords, ...tailItems]);
 
         try {
-          assertCompleteScoreBaseline(records, fixture);
-          assertCompleteScoreProgression(records, fixture);
-        } catch (error) {
-          if (
-            !(error instanceof TxlineHttpError) ||
-            error.code !== "SCORE_HISTORY_INCOMPLETE"
-          ) {
-            throw error;
+          assertCompleteHistory(records, fixture);
+        } catch (historyError) {
+          if (!isHistoryIncomplete(historyError)) {
+            throw historyError;
           }
-          records = await recoverCompleteScoreHistoryFromSnapshots({
-            fixtureId,
-            fixture,
-            startTimestamp: fixture.startTimestamp,
-            endTimestamp: latestTimestamp,
-            baseRecords: records,
-            fetchSnapshotAt: (snapshotFixtureId, asOf, snapshotSignal) =>
-              scoreSnapshotSource.fetchSnapshotAt(
-                snapshotFixtureId,
-                asOf,
-                snapshotSignal
-              ),
-            ...(signal === undefined ? {} : { signal })
-          });
-          assertCompleteScoreBaseline(records, fixture);
-          assertCompleteScoreProgression(records, fixture);
+
+          let openingError: TxlineHttpError | undefined;
+          try {
+            records = recoverOpeningScorePrefixFromGoalActions(records, fixture);
+            assertCompleteHistory(records, fixture);
+          } catch (error) {
+            if (!isHistoryIncomplete(error)) {
+              throw error;
+            }
+            openingError = error;
+          }
+
+          if (openingError !== undefined) {
+            try {
+              records = await recoverCompleteScoreHistoryFromSnapshots({
+                fixtureId,
+                fixture,
+                startTimestamp: fixture.startTimestamp,
+                endTimestamp: latestTimestamp,
+                baseRecords: records,
+                fetchSnapshotAt: (snapshotFixtureId, asOf, snapshotSignal) =>
+                  scoreSnapshotSource.fetchSnapshotAt(
+                    snapshotFixtureId,
+                    asOf,
+                    snapshotSignal
+                  ),
+                ...(signal === undefined ? {} : { signal })
+              });
+              assertCompleteHistory(records, fixture);
+            } catch (snapshotError) {
+              if (!isHistoryIncomplete(snapshotError)) {
+                throw snapshotError;
+              }
+              throw new TxlineHttpError(
+                "SCORE_HISTORY_INCOMPLETE",
+                `TxLINE opening history remained incomplete. Goal-action recovery: ${openingError.message} Snapshot recovery: ${snapshotError.message}`
+              );
+            }
+          }
         }
       }
 
