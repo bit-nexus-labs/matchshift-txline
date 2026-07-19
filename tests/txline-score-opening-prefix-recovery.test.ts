@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { MatchEventRecord } from "../src/core/types.js";
 import { normalizeCuratedHistoricalScores } from "../src/txline/curated-replay-exporter.js";
 import { TxlineHttpError } from "../src/txline/http-client.js";
 import type { NormalizedFixture } from "../src/txline/normalizer.js";
@@ -77,7 +78,8 @@ describe("curated opening score prefix recovery", () => {
     );
     const opening = normalized.find((record) => record.kind === "recovery");
     const goals = normalized.filter(
-      (record) => record.kind === "event" && record.eventType === "GOAL"
+      (record): record is MatchEventRecord =>
+        record.kind === "event" && record.eventType === "GOAL"
     );
 
     expect(opening).toMatchObject({
@@ -85,8 +87,8 @@ describe("curated opening score prefix recovery", () => {
       snapshot: { score: { home: 0, away: 0 } }
     });
     expect(goals).toHaveLength(5);
-    expect(goals.filter((goal) => goal.kind === "event" && goal.team === "HOME")).toHaveLength(1);
-    expect(goals.filter((goal) => goal.kind === "event" && goal.team === "AWAY")).toHaveLength(4);
+    expect(goals.filter((goal) => goal.team === "HOME")).toHaveLength(1);
+    expect(goals.filter((goal) => goal.team === "AWAY")).toHaveLength(4);
   });
 
   it("fails closed when the goal-action side counts do not equal the first trusted score", () => {
