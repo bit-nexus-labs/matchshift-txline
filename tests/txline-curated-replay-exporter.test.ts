@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCuratedOddsSampleTimestamps,
   exportCuratedCompletedMatch,
+  matchDateUtcToEpochDay,
   type CuratedReplayExportClient
 } from "../src/txline/curated-replay-exporter.js";
 
@@ -54,6 +55,15 @@ function oddsPayload(asOf: number) {
 }
 
 describe("TxLINE curated replay exporter", () => {
+  it("converts an exact UTC match date to the TxLINE epoch day", () => {
+    expect(matchDateUtcToEpochDay("2026-07-18")).toBe(
+      Math.floor(Date.parse("2026-07-18T00:00:00.000Z") / 86_400_000)
+    );
+    expect(() => matchDateUtcToEpochDay("2026-7-18")).toThrow(
+      "YYYY-MM-DD"
+    );
+  });
+
   it("builds deterministic sample timestamps around score boundaries", () => {
     const samples = buildCuratedOddsSampleTimestamps({
       kickoffTimestamp: T0,
@@ -89,19 +99,28 @@ describe("TxLINE curated replay exporter", () => {
     ]);
   });
 
-  it("writes only an allowlisted generated MatchShift module", async () => {
+  it("uses a date-scoped fixture snapshot and writes only an allowlisted module", async () => {
     const oddsCalls: number[] = [];
+    let currentSnapshotCalls = 0;
+    let requestedEpochDay: number | undefined;
     const client: CuratedReplayExportClient = {
-      fetchFixturesSnapshot: async () => [
-        {
-          FixtureId: "private-fixture",
-          StartTime: T0,
-          Participant1: "France",
-          Participant2: "England",
-          Participant1IsHome: true,
-          GameState: 5
-        }
-      ],
+      fetchFixturesSnapshot: async () => {
+        currentSnapshotCalls += 1;
+        return [];
+      },
+      fetchFixturesSnapshotForDay: async (startEpochDay) => {
+        requestedEpochDay = startEpochDay;
+        return [
+          {
+            FixtureId: "private-fixture",
+            StartTime: T0,
+            Participant1: "France",
+            Participant2: "England",
+            Participant1IsHome: true,
+            GameState: 5
+          }
+        ];
+      },
       fetchScoresHistorical: async () => scorePayload(),
       fetchOddsSnapshotAt: async (_fixtureId, asOf) => {
         oddsCalls.push(asOf);
@@ -130,6 +149,8 @@ describe("TxLINE curated replay exporter", () => {
       commitSha: "test-commit"
     });
 
+    expect(requestedEpochDay).toBe(matchDateUtcToEpochDay("2026-07-18"));
+    expect(currentSnapshotCalls).toBe(0);
     expect(oddsCalls.length).toBeGreaterThan(0);
     expect(result.scoreRecordCount).toBe(2);
     expect(result.oddsRecordCount).toBeGreaterThan(0);
