@@ -32,7 +32,7 @@ describe("judge-facing demo", () => {
     );
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
     expect(response.body).toContain("Watch on your time");
-    expect(response.body).toContain("Start spoiler-safe demo");
+    expect(response.body).toContain("Start synthetic judge demo");
     expect(response.body).toContain("one at an earlier personal cursor");
     expect(response.body).toContain("Viewer time");
     expect(response.body).not.toContain("six minutes behind");
@@ -52,7 +52,10 @@ describe("judge-facing demo", () => {
     expect(body.fixtures.length).toBeGreaterThan(0);
     expect(body.fixtures[0]).toMatchObject({
       fixtureId: "synthetic-matchshift-001",
-      provenance: "SYNTHETIC"
+      provenance: "SYNTHETIC",
+      homeLabel: "Northbridge",
+      awayLabel: "Southport",
+      demoKind: "SYNTHETIC"
     });
     expect(response.body).not.toContain("records");
     expect(response.body).not.toContain("synthetic-home-goal-49");
@@ -73,6 +76,9 @@ describe("judge-facing demo", () => {
         fixtureId: string;
         label: string;
         provenance: string;
+        homeLabel: string;
+        awayLabel: string;
+        demoKind: string;
         kickoffTimestamp: number;
         liveEdgeTimestamp: number;
         maxMinute: number;
@@ -103,6 +109,9 @@ describe("judge-facing demo", () => {
       fixtureId: "synthetic-matchshift-001",
       label: "Synthetic MatchShift acceptance scenario (not live TxLINE data)",
       provenance: "SYNTHETIC",
+      homeLabel: "Northbridge",
+      awayLabel: "Southport",
+      demoKind: "SYNTHETIC",
       kickoffTimestamp: T0,
       liveEdgeTimestamp: T0 + 52 * 60_000,
       maxMinute: 52
