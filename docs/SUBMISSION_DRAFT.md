@@ -67,19 +67,21 @@ The full endpoint purpose, authentication behavior, and developer feedback are d
 
 ## Authenticated private evidence
 
-On July 17, 2026, an explicit local evidence runner completed against TxLINE mainnet without publishing provider data:
+Explicit local evidence runners completed against TxLINE mainnet without publishing provider data:
 
-- historical TxLINE integration smoke: `PASS`;
-- Solana subscription provenance verification: `PASS`;
-- literal normalized live SSE record: `NOT OBSERVED` during the short observation window and therefore not claimed as `PASS`.
+- historical TxLINE integration smoke on July 17, 2026: `PASS`;
+- Solana subscription provenance verification on July 17, 2026: `PASS`;
+- authenticated `/api/odds/stream` transport on July 19, 2026: `PASS` after one structurally valid non-heartbeat odds event arrived;
+- literal normalized live SSE record: `NOT OBSERVED` and therefore not claimed as `PASS`;
+- normalized live snapshot change: `NOT OBSERVED` and therefore not claimed as `PASS`.
 
-The generated receipts remain private. They contain no API token, guest JWT, wallet secret, raw provider payload, team name, score, odds, or probability value. The public repository and judge deployment remain deterministic and credential-free.
+The transport `PASS` proves authenticated mainnet SSE delivery and structural odds-event validity only. It does not claim that the event passed MatchShift's narrower full-match winner semantic normalizer. The generated receipts remain private. They contain no API token, guest JWT, wallet secret, raw provider payload, fixture identifier, team name, score, odds, or probability value. The public repository and judge deployment remain deterministic and credential-free.
 
 ## TxLINE developer experience feedback
 
 The guest-JWT bootstrap, shared authentication model, snapshot examples, and normalized cross-competition schema made a clean server-only adapter possible. Snapshot-first hydration also mapped well to a reliable reconnect design.
 
-The main friction was around historical schema and timing boundaries. A valid historical three-way winner shape was not covered by the first narrow classifier, so additional historical odds examples and a clearer mapping between `SuperOddsType`, `PriceNames`, `MarketParameters`, and `MarketPeriod` would help. Precise `asOf` semantics and explicit guidance distinguishing heartbeat-only SSE connections from observed data records would also reduce integration uncertainty.
+The main friction was around historical schema and timing boundaries. A valid historical three-way winner shape was not covered by the first narrow classifier, so additional historical odds examples and a clearer mapping between `SuperOddsType`, `PriceNames`, `MarketParameters`, and `MarketPeriod` would help. Precise `asOf` semantics and explicit guidance distinguishing heartbeat-only SSE connections, transport-level data events, and product-normalized records would also reduce integration uncertainty.
 
 ## Judge demo
 
@@ -154,7 +156,7 @@ No private trading bot source, exchange secrets, raw TxLINE exports, or copied c
 ## Current limitations
 
 - The public demo uses deterministic synthetic data.
-- Authenticated historical TxLINE integration was privately verified, but a literal normalized live SSE record has not yet been observed and is not claimed as complete live-input proof.
+- Authenticated historical integration and mainnet odds SSE transport were privately verified, but literal product-normalized live SSE and normalized live snapshot change were not observed and are not claimed as complete semantic live-input proof.
 - Sessions are in memory.
 - Only an unambiguous full-match `1X2` market is normalized for the demo.
 - Production user authentication, persistence, shared watch rooms, and streaming-platform integrations are roadmap items.
@@ -175,4 +177,4 @@ No private trading bot source, exchange secrets, raw TxLINE exports, or copied c
 
 ## Suggested short pitch
 
-> MatchShift is a personal match timeline for delayed viewers. Instead of merely hiding the live score in the interface, it enforces a visibility cursor on the server. Two people can follow the same match at different playback minutes without the delayed viewer receiving future goals, odds changes, or explanations. The judge demo is one click, walletless, loginless, and deterministic, while the optional TxLINE adapter handles official snapshots and streams with fail-closed ordering safety. Authenticated historical integration and subscription provenance were privately verified without publishing provider data; literal live SSE remains honestly recorded as not yet observed. Commercially, MatchShift can be licensed as a white-label B2B API/SDK to streaming and sports-media platforms through recurring platform and usage-based fees.
+> MatchShift is a personal match timeline for delayed viewers. Instead of merely hiding the live score in the interface, it enforces a visibility cursor on the server. Two people can follow the same match at different playback minutes without the delayed viewer receiving future goals, odds changes, or explanations. The judge demo is one click, walletless, loginless, and deterministic, while the optional TxLINE adapter handles official snapshots and streams with fail-closed ordering safety. Authenticated historical integration, subscription provenance, and mainnet odds SSE transport were privately verified without publishing provider data; literal product-normalized live SSE remains honestly recorded as not observed. Commercially, MatchShift can be licensed as a white-label B2B API/SDK to streaming and sports-media platforms through recurring platform and usage-based fees.
