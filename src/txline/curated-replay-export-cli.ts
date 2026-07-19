@@ -1,4 +1,6 @@
 import { resolveTxlineOrigin, type TxlineNetwork } from "./config.js";
+import { exportCuratedCompletedMatchWithDisclosure } from "./curated-partial-exporter.js";
+import { createCuratedPartialReplaySource } from "./curated-partial-replay-source.js";
 import { exportCuratedCompletedMatch } from "./curated-replay-exporter.js";
 import { createCuratedReplaySource } from "./curated-replay-source.js";
 import { CuratedReplayError, type CuratedFixtureSelector } from "./curated-replay.js";
@@ -92,17 +94,16 @@ export async function curatedReplayExportCli(
       30_000,
       "TXLINE_REQUEST_TIMEOUT_MS"
     );
-    const client = createCuratedReplaySource({
+    const sourceOptions = {
       apiOrigin: resolveTxlineOrigin(network),
       apiToken,
       requestTimeoutMs
-    });
+    };
     const outputPath = env.TXLINE_CURATED_OUTPUT_PATH?.trim();
     const receiptPath = env.TXLINE_CURATED_RECEIPT_PATH?.trim();
     const competitionId = env.TXLINE_COMPETITION_ID?.trim();
-    const result = await exportCuratedCompletedMatch({
+    const exportOptions = {
       network,
-      client,
       selector: selectorFromEnvironment(env),
       publicFixtureId,
       publicLabel,
@@ -124,13 +125,36 @@ export async function curatedReplayExportCli(
       ...(competitionId === undefined || competitionId === ""
         ? {}
         : { competitionId })
-    });
+    };
+
+    const allowPartialOpening = readBoolean(
+      env.TXLINE_CURATED_ALLOW_PARTIAL_OPENING
+    );
+    const result = allowPartialOpening
+      ? await exportCuratedCompletedMatchWithDisclosure({
+          ...exportOptions,
+          client: createCuratedPartialReplaySource(sourceOptions)
+        })
+      : await exportCuratedCompletedMatch({
+          ...exportOptions,
+          client: createCuratedReplaySource(sourceOptions)
+        });
+
     process.stdout.write("TXLINE CURATED COMPLETED-MATCH EXPORT: PASS\n");
     process.stdout.write(`Generated module: ${result.outputPath}\n`);
     process.stdout.write(`Private receipt: ${result.receiptPath}\n`);
     process.stdout.write(
       `Curated records: ${result.match.records.length}; normalized odds records: ${result.oddsRecordCount}\n`
     );
+    if (result.match.coverage?.scoreHistory === "PARTIAL_OPENING") {
+      const minutes =
+        (result.match.coverage.providerScoreStartTimestamp -
+          result.match.kickoffTimestamp) /
+        60_000;
+      process.stdout.write(
+        `Score coverage: PARTIAL_OPENING; trusted TxLINE score archive begins at +${minutes.toFixed(1)}m.\n`
+      );
+    }
   } catch (error) {
     const message = sanitizedErrorMessage(error, [apiToken]);
     process.stderr.write(
