@@ -18,7 +18,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --reporter=silent
       - run: pnpm typecheck
-      - run: pnpm test
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test-output.log
+      - name: Upload failed test output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-test-output
+          path: test-output.log
+          if-no-files-found: error
+          retention-days: 1
       - name: Parse Windows evidence runner
         shell: pwsh
         run: |
