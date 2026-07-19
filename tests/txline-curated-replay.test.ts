@@ -124,7 +124,10 @@ describe("TxLINE curated completed-match replay", () => {
     expect(serialized).not.toContain("private-provider-message");
     expect(serialized).not.toContain("private-provider-payload");
     expect(serialized).not.toContain("private-provider-event");
-    expect(match.records[0]?.kind).toBe("recovery");
+    const firstScoreRecord = match.records.find(
+      (record) => record.sourceOrder?.domain === "TXLINE_SCORES"
+    );
+    expect(firstScoreRecord?.kind).toBe("recovery");
 
     const beforeGoal = createViewerSession({
       sessionId: "before-goal",
