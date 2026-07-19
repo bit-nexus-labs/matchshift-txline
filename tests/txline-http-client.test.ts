@@ -80,7 +80,7 @@ describe("TxLINE HTTP client", () => {
     expect(headersFor(mock.calls[2]!).get("Accept")).toBe("text/event-stream");
   });
 
-  it("uses the documented fixture snapshot query and filters dates locally", async () => {
+  it("sends the documented startEpochDay fixture snapshot query", async () => {
     const mock = makeFetchQueue([
       jsonResponse({ token: "jwt-mainnet" }),
       jsonResponse([])
@@ -95,9 +95,8 @@ describe("TxLINE HTTP client", () => {
     await client.fetchFixturesSnapshotForDay(20_000, 72);
 
     expect(mock.calls[1]?.url).toBe(
-      "https://txline.txodds.com/api/fixtures/snapshot?competitionId=72"
+      "https://txline.txodds.com/api/fixtures/snapshot?startEpochDay=20000&competitionId=72"
     );
-    expect(mock.calls[1]?.url).not.toContain("startEpochDay");
   });
 
   it("reports invalid JSON metadata without exposing the response body", async () => {
