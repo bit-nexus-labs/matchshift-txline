@@ -37,6 +37,7 @@ async function main(
   try {
     const sideA = env.TXLINE_LIVE_SIDE_A?.trim() ?? "";
     const sideB = env.TXLINE_LIVE_SIDE_B?.trim() ?? "";
+    const competitionId = env.TXLINE_COMPETITION_ID?.trim();
     if (apiToken === "") {
       throw new Error("TXLINE_API_TOKEN is required for live recording.");
     }
@@ -85,13 +86,15 @@ async function main(
       outputPath:
         env.TXLINE_LIVE_CAPTURE_PATH?.trim() ||
         "artifacts/private/txline-live-match-capture.jsonl",
-      competitionId: env.TXLINE_COMPETITION_ID?.trim(),
       signal: controller.signal,
       onCapture: (record) => {
         process.stdout.write(
           `Captured #${record.captureSequence}: ${record.domain}/${record.kind} @ ${new Date(record.sourceTimestamp).toISOString()}\n`
         );
-      }
+      },
+      ...(competitionId === undefined || competitionId === ""
+        ? {}
+        : { competitionId })
     });
 
     process.stdout.write("TXLINE LIVE MATCH RECORDER: COMPLETE\n");
