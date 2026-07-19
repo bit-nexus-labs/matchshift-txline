@@ -26,7 +26,7 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 
 - [x] No FIFA name, logo, trophy, marks, or implied affiliation is used.
 - [x] Synthetic teams are fictional and clearly presented as replay/demo data.
-- [x] The README distinguishes synthetic, mocked, optional transport, authenticated private evidence, and not-yet-observed literal live SSE behavior.
+- [x] The README distinguishes synthetic, mocked, optional transport, authenticated private evidence, transport-level `PASS`, and not-observed semantic live paths.
 - [x] Visibility receipts are described as deterministic state hashes, not provider signatures or on-chain proofs.
 - [ ] The final video repeats the synthetic/mock/private-evidence/live distinctions accurately.
 - [ ] Submission screenshots contain no restricted branding.
@@ -49,7 +49,9 @@ This checklist is a project-control aid, not legal advice. Reconfirm it against 
 - [x] Optional TxLINE credentials remain server-side.
 - [x] API tokens and guest JWTs are redacted from errors and status responses.
 - [x] Authenticated historical integration and subscription provenance evidence were collected privately without publishing raw provider payloads.
-- [x] Literal live SSE is recorded as `NOT OBSERVED`, not misrepresented as `PASS`.
+- [x] Authenticated mainnet odds SSE transport is recorded as a private transport-level `PASS` with no provider payload published.
+- [x] Literal product-normalized live SSE remains `NOT OBSERVED`, not misrepresented as `PASS`.
+- [x] Normalized live snapshot change remains `NOT OBSERVED`, not misrepresented as `PASS`.
 - [x] The exact TxLINE HTTP endpoints used are listed publicly.
 - [x] Specific TxLINE developer-experience feedback is documented publicly.
 - [ ] Data-license obligations are reviewed again before and after the hackathon concludes.
