@@ -24,6 +24,10 @@ interface ReplayResponseMetadata {
   contentType?: string;
 }
 
+interface ReplayRecordContext {
+  fixtureId?: string | number;
+}
+
 type ReplayRecordKind = "scores" | "odds";
 type UnknownRecord = Record<string, unknown>;
 
@@ -155,18 +159,10 @@ function isScoreUpdateRecord(record: UnknownRecord): boolean {
 
 function isOddsUpdateRecord(record: UnknownRecord): boolean {
   return (
-    hasAnyKey(record, ["fixtureId", "FixtureId"]) &&
     hasAnyKey(record, ["ts", "Ts"]) &&
-    hasAnyKey(record, [
-      "PriceNames",
-      "priceNames",
-      "Prices",
-      "prices",
-      "Pct",
-      "pct",
-      "SuperOddsType",
-      "superOddsType"
-    ])
+    hasAnyKey(record, ["SuperOddsType", "superOddsType"]) &&
+    hasAnyKey(record, ["PriceNames", "priceNames"]) &&
+    hasAnyKey(record, ["Prices", "prices", "Pct", "pct"])
   );
 }
 
@@ -182,6 +178,20 @@ function canonicalizeHistoricalScoreRecord(record: UnknownRecord): UnknownRecord
     ...record,
     ...(alreadyHasScoreAlias || scoreSoccer === undefined ? {} : { scoreSoccer }),
     ...(alreadyHasDataAlias || dataSoccer === undefined ? {} : { dataSoccer })
+  };
+}
+
+function canonicalizeHistoricalOddsRecord(
+  record: UnknownRecord,
+  context: ReplayRecordContext
+): UnknownRecord {
+  const hasFixtureId =
+    record.fixtureId !== undefined || record.FixtureId !== undefined;
+  return {
+    ...record,
+    ...(hasFixtureId || context.fixtureId === undefined
+      ? {}
+      : { FixtureId: context.fixtureId })
   };
 }
 
@@ -205,7 +215,8 @@ function tryParseNestedJson(value: string): unknown | undefined {
 
 export function extractTxlineReplayRecords(
   payload: unknown,
-  kind: ReplayRecordKind
+  kind: ReplayRecordKind,
+  context: ReplayRecordContext = {}
 ): unknown[] {
   const records: unknown[] = [];
   const seen = new WeakSet<object>();
@@ -247,7 +258,9 @@ export function extractTxlineReplayRecords(
         : isOddsUpdateRecord(record);
     if (matches) {
       records.push(
-        kind === "scores" ? canonicalizeHistoricalScoreRecord(record) : record
+        kind === "scores"
+          ? canonicalizeHistoricalScoreRecord(record)
+          : canonicalizeHistoricalOddsRecord(record, context)
       );
       return;
     }
@@ -311,7 +324,7 @@ export class TxlineReplayHttpSource {
       `/api/odds/snapshot/${encodeURIComponent(String(fixtureId))}?${query.toString()}`,
       signal
     );
-    const records = extractTxlineReplayRecords(payload, "odds");
+    const records = extractTxlineReplayRecords(payload, "odds", { fixtureId });
     if (records.length === 0) {
       throw missingReplayRecords("odds");
     }
