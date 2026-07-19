@@ -92,7 +92,31 @@ describe("curated full historical score recovery", () => {
     expect(() => assertCompleteScoreBaseline(records, fixture)).not.toThrow();
   });
 
-  it("rejects the observed last-30 tail when it starts at 1-4", () => {
+  it("uses provider sequence before a skewed source timestamp", () => {
+    const baseline = scoreRecord(1, KICKOFF + 60_000, 0, 0);
+    const clockSkewedGoal = scoreRecord(2, KICKOFF, 0, 1);
+    const records = mergeDirectScoreRecords([clockSkewedGoal, baseline]);
+
+    expect(records[0]).toEqual(baseline);
+    expect(() => assertCompleteScoreBaseline(records, fixture)).not.toThrow();
+  });
+
+  it("skips technical score records before the first trusted snapshot", () => {
+    const technical = {
+      ...scoreRecord(1, KICKOFF - 1_000, 0, 0),
+      action: "lineup"
+    };
+    const baseline = {
+      ...scoreRecord(2, KICKOFF, 0, 0),
+      action: "kickoff"
+    };
+
+    expect(() =>
+      assertCompleteScoreBaseline([technical, baseline], fixture)
+    ).not.toThrow();
+  });
+
+  it("rejects the observed last-30 tail with privacy-safe diagnostics", () => {
     const incomplete = [scoreRecord(31, KICKOFF + 70 * 60_000, 1, 4)];
     const error = (() => {
       try {
@@ -105,6 +129,11 @@ describe("curated full historical score recovery", () => {
 
     expect(error).toBeInstanceOf(TxlineHttpError);
     expect((error as TxlineHttpError).code).toBe("SCORE_HISTORY_INCOMPLETE");
+    expect((error as Error).message).toContain("first trusted score was 1-4");
+    expect((error as Error).message).toContain("at +70.0m");
+    expect((error as Error).message).toContain("direct kickoff observed: NO");
+    expect((error as Error).message).toContain("direct records: 1");
+    expect((error as Error).message).not.toContain(FIXTURE_ID);
   });
 
   it("uses the SDK score-update bucket endpoint with a fixture filter", async () => {
