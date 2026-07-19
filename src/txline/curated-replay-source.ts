@@ -8,6 +8,11 @@ import {
   type NormalizedFixture
 } from "./normalizer.js";
 import { TxlineReplayHttpSource } from "./replay-http-source.js";
+import {
+  assertCompleteScoreProgression,
+  recoverCompleteScoreHistoryFromSnapshots
+} from "./score-snapshot-recovery.js";
+import { TxlineScoreSnapshotSource } from "./score-snapshot-source.js";
 import { TxlineScoreHistoryWindowSource } from "./score-history-window-source.js";
 
 export interface CuratedReplaySourceOptions {
@@ -219,6 +224,7 @@ export function createCuratedReplaySource(
   const fixtureClient = new TxlineHttpClient(options);
   const replaySource = new TxlineReplayHttpSource(options);
   const scoreWindowSource = new TxlineScoreHistoryWindowSource(options);
+  const scoreSnapshotSource = new TxlineScoreSnapshotSource(options);
   const fixturesById = new Map<string, NormalizedFixture>();
   const earliestScoreTimestampByFixture = new Map<string, number>();
   const anchoredOddsFixtures = new Set<string>();
@@ -276,7 +282,34 @@ export function createCuratedReplaySource(
           );
         }
         records = mergeDirectScoreRecords([...bucketRecords, ...tailItems]);
-        assertCompleteScoreBaseline(records, fixture);
+
+        try {
+          assertCompleteScoreBaseline(records, fixture);
+          assertCompleteScoreProgression(records, fixture);
+        } catch (error) {
+          if (
+            !(error instanceof TxlineHttpError) ||
+            error.code !== "SCORE_HISTORY_INCOMPLETE"
+          ) {
+            throw error;
+          }
+          records = await recoverCompleteScoreHistoryFromSnapshots({
+            fixtureId,
+            fixture,
+            startTimestamp: fixture.startTimestamp,
+            endTimestamp: latestTimestamp,
+            baseRecords: records,
+            fetchSnapshotAt: (snapshotFixtureId, asOf, snapshotSignal) =>
+              scoreSnapshotSource.fetchSnapshotAt(
+                snapshotFixtureId,
+                asOf,
+                snapshotSignal
+              ),
+            ...(signal === undefined ? {} : { signal })
+          });
+          assertCompleteScoreBaseline(records, fixture);
+          assertCompleteScoreProgression(records, fixture);
+        }
       }
 
       const earliestTimestamp = earliestDirectScoreTimestamp(records);
