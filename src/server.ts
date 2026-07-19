@@ -7,7 +7,6 @@ import type { MatchDataSource } from "./data-source/types.js";
 
 export interface BuildAppOptions {
   matches?: readonly MatchDefinition[];
-  curatedMatch?: MatchDefinition;
   dataSource?: MatchDataSource;
   env?: Readonly<Record<string, string | undefined>>;
 }
@@ -25,14 +24,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   );
   const sessions = new Map<string, ViewerSession>();
 
-  void registerRoutes(app, {
-    matches,
-    sessions,
-    dataSource,
-    ...(options.curatedMatch === undefined
-      ? {}
-      : { curatedMatch: options.curatedMatch })
-  });
+  void registerRoutes(app, { matches, sessions, dataSource });
   return app;
 }
 
