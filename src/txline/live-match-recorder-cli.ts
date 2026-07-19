@@ -1,4 +1,4 @@
-import { recordLiveMatch } from "./live-match-recorder.js";
+import { recordFixtureScopedLiveMatch } from "./live-match-recorder-v2.js";
 import { sanitizedErrorMessage } from "./redaction.js";
 import type { TxlineNetwork } from "./config.js";
 
@@ -50,10 +50,10 @@ async function main(
     process.stdout.write("TXLINE LIVE MATCH RECORDER: STARTING\n");
     process.stdout.write(`Target: ${sideA} vs ${sideB}\n`);
     process.stdout.write(
-      "Only normalized allowlisted records are written; raw payloads and provider identifiers are not persisted.\n"
+      "Fixture-scoped normalized records only; raw payloads and provider identifiers are not persisted.\n"
     );
 
-    const result = await recordLiveMatch({
+    const result = await recordFixtureScopedLiveMatch({
       network: readNetwork(env.TXLINE_NETWORK ?? env.TXLINE_MODE),
       apiToken,
       sideA,
@@ -73,15 +73,10 @@ async function main(
         30_000,
         "TXLINE_REQUEST_TIMEOUT_MS"
       ),
-      reconnectBaseMs: readPositiveInteger(
+      reconnectMs: readPositiveInteger(
         env.TXLINE_RECONNECT_BASE_MS,
         1_000,
         "TXLINE_RECONNECT_BASE_MS"
-      ),
-      reconnectMaxMs: readPositiveInteger(
-        env.TXLINE_RECONNECT_MAX_MS,
-        30_000,
-        "TXLINE_RECONNECT_MAX_MS"
       ),
       outputPath:
         env.TXLINE_LIVE_CAPTURE_PATH?.trim() ||
