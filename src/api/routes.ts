@@ -89,8 +89,14 @@ function buildJudgeDemoPage(): string {
     [
       '        if (model.fixture) {',
       '          el["match-title"].textContent = model.fixture.homeLabel + " vs " + model.fixture.awayLabel;',
+      '          var partialCoverage = model.fixture.coverage && model.fixture.coverage.scoreHistory === "PARTIAL_OPENING";',
+      '          var providerStartMinute = partialCoverage',
+      '            ? minuteLabel((model.fixture.coverage.providerScoreStartTimestamp - model.fixture.kickoffTimestamp) / 60000)',
+      '            : "";',
       '          el["match-meta"].textContent = model.fixture.demoKind === "CURATED"',
-      '            ? "Authenticated TxLINE completed-match replay · two isolated server sessions"',
+      '            ? (partialCoverage',
+      '              ? "Authenticated TxLINE partial historical replay · local 0-0 kickoff baseline · provider score archive begins at " + providerStartMinute',
+      '              : "Authenticated TxLINE completed-match replay · two isolated server sessions")',
       '            : model.fixture.provenance + " replay · two independent server sessions";',
       '          var teams = document.querySelectorAll(".team");',
       '          if (teams.length >= 4) {',
@@ -143,7 +149,9 @@ function buildJudgeDemoPage(): string {
       '        .then(function (status) {',
       '          if (!status.available) return;',
       '          el["start-curated"].style.display = "block";',
-      '          el["source-status"].textContent = "Synthetic judge demo + curated TxLINE replay ready";',
+      '          el["source-status"].textContent = status.fixture.coverage && status.fixture.coverage.scoreHistory === "PARTIAL_OPENING"',
+      '            ? "Synthetic judge demo + disclosed partial TxLINE replay ready"',
+      '            : "Synthetic judge demo + curated TxLINE replay ready";',
       '        })',
       '        .catch(function () {',
       '          el["start-curated"].style.display = "none";',
@@ -192,7 +200,8 @@ function publicFixture(match: MatchDefinition) {
     provenance: match.provenance,
     homeLabel: display.homeLabel,
     awayLabel: display.awayLabel,
-    demoKind: match === CURATED_REAL_MATCH ? "CURATED" : "SYNTHETIC"
+    demoKind: match === CURATED_REAL_MATCH ? "CURATED" : "SYNTHETIC",
+    ...(match.coverage === undefined ? {} : { coverage: match.coverage })
   };
 }
 
@@ -278,7 +287,10 @@ export async function registerRoutes(
       : {
           available: true,
           fixture: publicFixture(CURATED_REAL_MATCH),
-          note: "Single curated completed-match replay; not a provider feed or archive."
+          note:
+            CURATED_REAL_MATCH.coverage?.scoreHistory === "PARTIAL_OPENING"
+              ? "Single curated replay with disclosed partial opening score coverage; not a provider feed or archive."
+              : "Single curated completed-match replay; not a provider feed or archive."
         }
   );
 
