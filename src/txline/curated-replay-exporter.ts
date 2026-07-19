@@ -26,6 +26,7 @@ import {
 } from "./normalizer.js";
 
 const MINUTE_MS = 60_000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 const DEFAULT_DURATION_MINUTES = 120;
 const DEFAULT_ODDS_SAMPLE_MINUTES = 10;
 const DEFAULT_OUTPUT_PATH = "src/replay/curated-real-match.ts";
@@ -36,6 +37,11 @@ type UnknownRecord = Record<string, unknown>;
 
 export interface CuratedReplayExportClient {
   fetchFixturesSnapshot(
+    competitionId?: string | number,
+    signal?: AbortSignal
+  ): Promise<unknown>;
+  fetchFixturesSnapshotForDay(
+    startEpochDay: number,
     competitionId?: string | number,
     signal?: AbortSignal
   ): Promise<unknown>;
@@ -130,6 +136,35 @@ function rawScoreOrder(left: unknown, right: unknown): number {
     parseSourceTimestamp(rightRecord.ts ?? rightRecord.Ts) ??
     Number.MAX_SAFE_INTEGER;
   return leftSequence - rightSequence || leftTimestamp - rightTimestamp;
+}
+
+export function matchDateUtcToEpochDay(value: string): number {
+  const normalized = value.trim();
+  const timestamp = Date.parse(`${normalized}T00:00:00.000Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(normalized) ||
+    !Number.isSafeInteger(timestamp) ||
+    new Date(timestamp).toISOString().slice(0, 10) !== normalized
+  ) {
+    throw new CuratedReplayError(
+      "CURATED_DATE_INVALID",
+      "The optional curated match date must use YYYY-MM-DD in UTC."
+    );
+  }
+  return Math.floor(timestamp / DAY_MS);
+}
+
+async function fetchCuratedFixtureSnapshot(
+  options: CuratedReplayExportOptions
+): Promise<unknown> {
+  const matchDateUtc = options.selector.matchDateUtc?.trim();
+  if (matchDateUtc === undefined || matchDateUtc === "") {
+    return options.client.fetchFixturesSnapshot(options.competitionId);
+  }
+  return options.client.fetchFixturesSnapshotForDay(
+    matchDateUtcToEpochDay(matchDateUtc),
+    options.competitionId
+  );
 }
 
 export function normalizeCuratedHistoricalScores(
@@ -367,9 +402,7 @@ export async function exportCuratedCompletedMatch(
   const outputPath = options.outputPath?.trim() || DEFAULT_OUTPUT_PATH;
   const receiptPath = options.receiptPath?.trim() || DEFAULT_RECEIPT_PATH;
 
-  const fixturePayload = await options.client.fetchFixturesSnapshot(
-    options.competitionId
-  );
+  const fixturePayload = await fetchCuratedFixtureSnapshot(options);
   const fixture = selectCuratedFixture(
     normalizeFixtures(fixturePayload),
     options.selector
