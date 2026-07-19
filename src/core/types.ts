@@ -65,6 +65,12 @@ export interface MatchDisplay {
   awayLabel: string;
 }
 
+export interface MatchScoreCoverage {
+  scoreHistory: "PARTIAL_OPENING";
+  providerScoreStartTimestamp: number;
+  openingBaseline: "LOCAL_STRUCTURAL_0_0";
+}
+
 export interface MatchDefinition {
   fixtureId: string;
   label: string;
@@ -72,6 +78,7 @@ export interface MatchDefinition {
   kickoffTimestamp: number;
   liveEdgeTimestamp: number;
   display?: MatchDisplay;
+  coverage?: MatchScoreCoverage;
   /** Synthetic Task 01 prefix baseline only. TxLINE uses per-feed metadata. */
   expectedFirstSequence?: number;
   records: readonly MatchRecord[];
