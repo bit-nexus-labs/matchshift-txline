@@ -8,6 +8,7 @@
 - [TxLINE integration smoke](TXLINE_INTEGRATION_SMOKE.md) — local authenticated historical evidence path, redacted receipt rules, and proof boundaries.
 - [TxLINE Solana provenance](TXLINE_SOLANA_PROVENANCE.md) — public subscription-transaction verification without a private key or API-token linkage claim.
 - [TxLINE live observer](TXLINE_LIVE_OBSERVER.md) — literal SSE data-record evidence that rejects heartbeat-only connections.
+- [TxLINE live transport evidence](TXLINE_LIVE_TRANSPORT_EVIDENCE.md) — privacy-safe authenticated mainnet odds SSE transport `PASS` and its explicit non-semantic boundary.
 - [TxLINE endpoints and feedback](TXLINE_ENDPOINTS_AND_FEEDBACK.md) — exact HTTP surfaces used and specific developer-experience feedback from the integration.
 - [Windows evidence runner](TXLINE_EVIDENCE_WINDOWS.md) — one safe PowerShell workflow for the three manual evidence commands.
 
@@ -26,4 +27,4 @@
 
 ## Source of truth
 
-The repository `main` branch, pull-request history, and GitHub Actions logs are the technical source of truth. Documentation must not claim a public deployment, live TxLINE smoke test, provider signature, or on-chain proof until that evidence actually exists.
+The repository `main` branch, pull-request history, and GitHub Actions logs are the technical source of truth. Documentation must distinguish transport evidence, semantic normalization, public demo behavior, provider signatures, and on-chain proofs rather than combining them into one claim.
