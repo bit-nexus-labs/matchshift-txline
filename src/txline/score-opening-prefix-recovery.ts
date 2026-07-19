@@ -1,3 +1,4 @@
+import type { MatchEventRecord } from "../core/types.js";
 import { TxlineHttpError } from "./http-client.js";
 import {
   normalizeScorePayload,
@@ -66,6 +67,10 @@ function directOrder(left: unknown, right: unknown): number {
   return leftSequence - rightSequence || leftTimestamp - rightTimestamp;
 }
 
+function isGoalEvent(record: MatchEventRecord): boolean {
+  return record.eventType === "GOAL";
+}
+
 function trustedOpeningSnapshot(
   ordered: readonly unknown[],
   fixture: NormalizedFixture
@@ -98,7 +103,7 @@ function trustedOpeningSnapshot(
       away: recovery.snapshot.score.away,
       sourceSequence,
       baselineIsGoal: event.records.some(
-        (record) => record.kind === "event" && record.eventType === "GOAL"
+        (record) => record.kind === "event" && isGoalEvent(record)
       )
     };
   }
@@ -118,7 +123,8 @@ function openingGoals(
       receivedTimestamp: fixture.startTimestamp
     });
     const goal = normalized.records.find(
-      (record) => record.kind === "event" && record.eventType === "GOAL"
+      (record): record is MatchEventRecord =>
+        record.kind === "event" && isGoalEvent(record)
     );
     if (goal === undefined || goal.team === undefined) {
       continue;
@@ -132,7 +138,10 @@ function openingGoals(
   return goals;
 }
 
-function participantForSide(side: Side, fixture: NormalizedFixture): "Participant1" | "Participant2" {
+function participantForSide(
+  side: Side,
+  fixture: NormalizedFixture
+): "Participant1" | "Participant2" {
   if (fixture.participant1IsHome) {
     return side === "HOME" ? "Participant1" : "Participant2";
   }
