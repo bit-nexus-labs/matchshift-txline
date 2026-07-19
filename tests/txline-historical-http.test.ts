@@ -38,7 +38,7 @@ describe("TxLINE historical HTTP helpers", () => {
     await client.fetchOddsSnapshotAt(991_001, 1_784_000_000_000);
 
     expect(calls[1]).toBe(
-      "https://txline.txodds.com/api/fixtures/snapshot?competitionId=72"
+      "https://txline.txodds.com/api/fixtures/snapshot?startEpochDay=20280&competitionId=72"
     );
     expect(calls[2]).toBe(
       "https://txline.txodds.com/api/scores/historical/991001"
