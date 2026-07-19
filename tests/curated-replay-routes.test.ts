@@ -47,7 +47,7 @@ describe("curated replay judge routes", () => {
     });
   });
 
-  it("renders the optional curated button and dynamic team script without exposing it", async () => {
+  it("renders a syntactically valid hidden curated entrypoint and dynamic team script", async () => {
     app = buildApp({ env: { TXLINE_MODE: "synthetic" } });
     await app.ready();
 
@@ -57,5 +57,8 @@ describe("curated replay judge routes", () => {
     expect(response.body).toContain('style="display:none');
     expect(response.body).toContain('api("/api/demo/curated/status")');
     expect(response.body).toContain('model.fixture.homeLabel + " goal"');
+    const script = response.body.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    expect(script).toBeDefined();
+    expect(() => new Function(script ?? "")).not.toThrow();
   });
 });
