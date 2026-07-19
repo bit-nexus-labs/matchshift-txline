@@ -14,7 +14,8 @@ import {
 import { TxlineReplayHttpSource } from "./replay-http-source.js";
 import {
   buildDisclosedPartialOpeningHistory,
-  readPartialOpeningCoverage
+  readPartialOpeningCoverage,
+  type PartialOpeningCoverageMarker
 } from "./score-partial-opening.js";
 import { TxlineScoreHistoryWindowSource } from "./score-history-window-source.js";
 
@@ -26,15 +27,20 @@ function directTimestamp(value: unknown): number | undefined {
   return parseSourceTimestamp(record.ts ?? record.Ts);
 }
 
+export interface CuratedPartialReplaySource extends CuratedReplayExportClient {
+  getScoreCoverage(): PartialOpeningCoverageMarker | undefined;
+}
+
 export function createCuratedPartialReplaySource(
   options: CuratedReplaySourceOptions
-): CuratedReplayExportClient {
+): CuratedPartialReplaySource {
   const strictSource = createCuratedReplaySource(options);
   const replaySource = new TxlineReplayHttpSource(options);
   const scoreWindowSource = new TxlineScoreHistoryWindowSource(options);
   const fixturesById = new Map<string, NormalizedFixture>();
   const oddsAnchorByFixture = new Map<string, number>();
   const anchoredOddsFixtures = new Set<string>();
+  let scoreCoverage: PartialOpeningCoverageMarker | undefined;
 
   const rememberFixtures = (payload: unknown): void => {
     for (const fixture of normalizeFixtures(payload)) {
@@ -43,6 +49,7 @@ export function createCuratedPartialReplaySource(
   };
 
   return {
+    getScoreCoverage: () => scoreCoverage,
     fetchFixturesSnapshot: async (competitionId, signal) => {
       const payload = await strictSource.fetchFixturesSnapshot(competitionId, signal);
       rememberFixtures(payload);
@@ -62,6 +69,7 @@ export function createCuratedPartialReplaySource(
       return payload;
     },
     fetchScoresHistorical: async (fixtureId, signal) => {
+      scoreCoverage = undefined;
       try {
         const payload = await strictSource.fetchScoresHistorical(fixtureId, signal);
         const items = Array.isArray(payload) ? payload : [payload];
@@ -121,6 +129,7 @@ export function createCuratedPartialReplaySource(
           "Partial opening fallback did not produce its required disclosure marker."
         );
       }
+      scoreCoverage = coverage;
       oddsAnchorByFixture.set(
         fixtureKey,
         coverage.providerScoreStartTimestamp
