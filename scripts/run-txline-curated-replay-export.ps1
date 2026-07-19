@@ -23,6 +23,8 @@ param(
 
     [string]$OutputPath = "src/replay/curated-real-match.ts",
 
+    [bool]$AllowPartialOpening = $true,
+
     [switch]$RequireOdds
 )
 
@@ -57,7 +59,8 @@ $environmentNames = @(
     "TXLINE_CURATED_DURATION_MINUTES",
     "TXLINE_CURATED_ODDS_SAMPLE_MINUTES",
     "TXLINE_CURATED_OUTPUT_PATH",
-    "TXLINE_CURATED_REQUIRE_ODDS"
+    "TXLINE_CURATED_REQUIRE_ODDS",
+    "TXLINE_CURATED_ALLOW_PARTIAL_OPENING"
 )
 foreach ($name in $environmentNames) {
     $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable(
@@ -78,6 +81,9 @@ try {
     Write-Host "Output: $OutputPath"
     Write-Host "The generated module is allowlisted MatchShift product data only."
     Write-Host "Raw provider payloads and provider identifiers are never written."
+    if ($AllowPartialOpening) {
+        Write-Host "Partial opening policy: disclosed local 0-0 baseline is allowed only when the provider archive starts later."
+    }
 
     $secureToken = Read-Host "TxLINE API token" -AsSecureString
     $plainToken = ConvertFrom-SecureStringPlainText -SecureValue $secureToken
@@ -97,6 +103,7 @@ try {
     $env:TXLINE_CURATED_ODDS_SAMPLE_MINUTES = [string]$OddsSampleMinutes
     $env:TXLINE_CURATED_OUTPUT_PATH = $OutputPath
     $env:TXLINE_CURATED_REQUIRE_ODDS = if ($RequireOdds) { "true" } else { "false" }
+    $env:TXLINE_CURATED_ALLOW_PARTIAL_OPENING = if ($AllowPartialOpening) { "true" } else { "false" }
 
     & pnpm "txline:export-curated-replay"
     if ($LASTEXITCODE -ne 0) {
