@@ -1,8 +1,6 @@
 import { resolveTxlineOrigin, type TxlineNetwork } from "./config.js";
-import {
-  createCuratedReplayHttpClient,
-  exportCuratedCompletedMatch
-} from "./curated-replay-exporter.js";
+import { exportCuratedCompletedMatch } from "./curated-replay-exporter.js";
+import { createCuratedReplaySource } from "./curated-replay-source.js";
 import { CuratedReplayError, type CuratedFixtureSelector } from "./curated-replay.js";
 import { sanitizedErrorMessage } from "./redaction.js";
 
@@ -94,7 +92,7 @@ export async function curatedReplayExportCli(
       30_000,
       "TXLINE_REQUEST_TIMEOUT_MS"
     );
-    const client = createCuratedReplayHttpClient({
+    const client = createCuratedReplaySource({
       apiOrigin: resolveTxlineOrigin(network),
       apiToken,
       requestTimeoutMs
