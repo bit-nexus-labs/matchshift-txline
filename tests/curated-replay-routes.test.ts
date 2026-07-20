@@ -10,7 +10,7 @@ afterEach(async () => {
 });
 
 describe("curated replay judge routes", () => {
-  it("publishes the validated Spain vs Argentina completed-match replay", async () => {
+  it("publishes the rich Spain vs Argentina completed-match replay", async () => {
     app = buildApp({ env: { TXLINE_MODE: "synthetic" } });
     await app.ready();
 
@@ -49,7 +49,15 @@ describe("curated replay judge routes", () => {
         session: { mode: string };
         state: {
           score: { home: number; away: number };
-          events: Array<{ eventType: string; minute: number }>;
+          events: Array<{
+            eventType: string;
+            minute: number;
+            importance: string;
+          }>;
+          statistics: {
+            home: Record<string, number>;
+            away: Record<string, number>;
+          };
         };
       };
       personal: {
@@ -66,13 +74,35 @@ describe("curated replay judge routes", () => {
       homeLabel: "Spain",
       awayLabel: "Argentina",
       demoKind: "CURATED",
-      maxMinute: 130
+      maxMinute: 141
     });
     expect(payload.live.session.mode).toBe("LIVE");
     expect(payload.live.state.score).toEqual({ home: 1, away: 0 });
+    expect(payload.live.state.events).toHaveLength(206);
     expect(payload.live.state.events).toContainEqual(
       expect.objectContaining({ eventType: "GOAL", minute: 106 })
     );
+    expect(
+      payload.live.state.events.filter((event) => event.importance === "KEY")
+    ).toHaveLength(22);
+    expect(payload.live.state.statistics).toMatchObject({
+      home: {
+        shots: 20,
+        shotsOnTarget: 12,
+        corners: 9,
+        yellowCards: 0,
+        redCards: 0,
+        substitutions: 6
+      },
+      away: {
+        shots: 3,
+        shotsOnTarget: 0,
+        corners: 4,
+        yellowCards: 4,
+        redCards: 1,
+        substitutions: 6
+      }
+    });
     expect(payload.personal.session.mode).toBe("REPLAY");
     expect(payload.personal.state.score).toEqual({ home: 0, away: 0 });
     expect(
@@ -97,7 +127,7 @@ describe("curated replay judge routes", () => {
     });
   });
 
-  it("renders a syntactically valid hidden curated entrypoint and dynamic team script", async () => {
+  it("renders a syntactically valid rich curated entrypoint", async () => {
     app = buildApp({ env: { TXLINE_MODE: "synthetic" } });
     await app.ready();
 
@@ -107,6 +137,10 @@ describe("curated replay judge routes", () => {
     expect(response.body).toContain('style="display:none');
     expect(response.body).toContain('api("/api/demo/curated/status")');
     expect(response.body).toContain('model.fixture.homeLabel + " goal"');
+    expect(response.body).toContain('id="timeline-filter"');
+    expect(response.body).toContain("Key events");
+    expect(response.body).toContain("Full timeline");
+    expect(response.body).toContain('id="live-stats"');
     expect(response.body).toContain('scoreHistory === "PARTIAL_OPENING"');
     expect(response.body).toContain("local 0-0 kickoff baseline");
     expect(response.body).toContain("curated TxLINE replay ready");
