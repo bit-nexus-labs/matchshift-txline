@@ -25,6 +25,9 @@ import {
 import { TxlineScoreSnapshotSource } from "./score-snapshot-source.js";
 import { TxlineScoreHistoryWindowSource } from "./score-history-window-source.js";
 
+const MINUTE_MS = 60_000;
+const DEFAULT_FALLBACK_HISTORY_DURATION_MINUTES = 120;
+
 function directTimestamp(value: unknown): number | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
@@ -39,6 +42,13 @@ function isHistoryIncomplete(error: unknown): error is TxlineHttpError {
     ["SCORE_HISTORY_INCOMPLETE", "SCORE_OPENING_PREFIX_INCOMPLETE"].includes(
       error.code
     )
+  );
+}
+
+function isEmptyScoreReplayResponse(error: unknown): error is TxlineHttpError {
+  return (
+    error instanceof TxlineHttpError &&
+    ["EMPTY_SSE_DATA", "SCORE_RECORDS_MISSING"].includes(error.code)
   );
 }
 
@@ -59,17 +69,36 @@ function earliestTimestamp(records: readonly unknown[]): number | undefined {
   }, undefined);
 }
 
+function readFallbackHistoryDurationMinutes(value: number | undefined): number {
+  const duration = value ?? DEFAULT_FALLBACK_HISTORY_DURATION_MINUTES;
+  if (!Number.isSafeInteger(duration) || duration <= 0) {
+    throw new TxlineHttpError(
+      "SCORE_PARTIAL_WINDOW_INVALID",
+      "Partial opening fallback history duration must be a positive integer."
+    );
+  }
+  return duration;
+}
+
+export interface CuratedPartialReplaySourceOptions
+  extends CuratedReplaySourceOptions {
+  fallbackHistoryDurationMinutes?: number;
+}
+
 export interface CuratedPartialReplaySource extends CuratedReplayExportClient {
   getScoreCoverage(): PartialOpeningCoverageMarker | undefined;
 }
 
 export function createCuratedPartialReplaySource(
-  options: CuratedReplaySourceOptions
+  options: CuratedPartialReplaySourceOptions
 ): CuratedPartialReplaySource {
   const fixtureClient = new TxlineHttpClient(options);
   const replaySource = new TxlineReplayHttpSource(options);
   const scoreWindowSource = new TxlineScoreHistoryWindowSource(options);
   const scoreSnapshotSource = new TxlineScoreSnapshotSource(options);
+  const fallbackHistoryDurationMinutes = readFallbackHistoryDurationMinutes(
+    options.fallbackHistoryDurationMinutes
+  );
   const fixturesById = new Map<string, NormalizedFixture>();
   const oddsAnchorByFixture = new Map<string, number>();
   const anchoredOddsFixtures = new Set<string>();
@@ -115,26 +144,52 @@ export function createCuratedPartialReplaySource(
         );
       }
 
-      const tail = await replaySource.fetchScoresHistorical(fixtureId, signal);
-      const tailItems = Array.isArray(tail) ? tail : [tail];
-      const latestTimestamp = tailItems.reduce<number>(
-        (latest, record) => Math.max(latest, directTimestamp(record) ?? latest),
-        fixture.startTimestamp
-      );
+      let tailItems: unknown[];
+      try {
+        const tail = await replaySource.fetchScoresHistorical(fixtureId, signal);
+        tailItems = Array.isArray(tail) ? tail : [tail];
+      } catch (error) {
+        if (!isEmptyScoreReplayResponse(error)) {
+          throw error;
+        }
+        tailItems = [];
+      }
+
+      const latestTimestamp =
+        tailItems.length === 0
+          ? fixture.startTimestamp + fallbackHistoryDurationMinutes * MINUTE_MS
+          : tailItems.reduce<number>(
+              (latest, record) =>
+                Math.max(latest, directTimestamp(record) ?? latest),
+              fixture.startTimestamp
+            );
+      if (!Number.isSafeInteger(latestTimestamp)) {
+        throw new TxlineHttpError(
+          "SCORE_PARTIAL_WINDOW_INVALID",
+          "Partial opening fallback history window exceeded the timestamp safety limit."
+        );
+      }
+
       const bucketRecords: unknown[] = [];
       for (const bucket of buildScoreHistoryBuckets(
         fixture.startTimestamp,
         latestTimestamp
       )) {
-        bucketRecords.push(
-          ...(await scoreWindowSource.fetchBucket(
-            bucket.epochDay,
-            bucket.hourOfDay,
-            bucket.interval,
-            fixtureId,
-            signal
-          ))
-        );
+        try {
+          bucketRecords.push(
+            ...(await scoreWindowSource.fetchBucket(
+              bucket.epochDay,
+              bucket.hourOfDay,
+              bucket.interval,
+              fixtureId,
+              signal
+            ))
+          );
+        } catch (error) {
+          if (!isEmptyScoreReplayResponse(error)) {
+            throw error;
+          }
+        }
       }
       let records = mergeDirectScoreRecords([...bucketRecords, ...tailItems]);
 
