@@ -11,6 +11,10 @@ import {
 import { normalizeFixtures, normalizeScorePayload } from "./normalizer.js";
 import { sanitizedErrorMessage } from "./redaction.js";
 import { TxlineReplayHttpSource } from "./replay-http-source.js";
+import {
+  diagnoseScoreRecordShape,
+  formatScoreRecordShapeDiagnostics
+} from "./score-record-shape-diagnostics.js";
 import { TxlineScoreHistoryWindowSource } from "./score-history-window-source.js";
 import { TxlineScoreSnapshotSource } from "./score-snapshot-source.js";
 
@@ -201,6 +205,11 @@ async function main(
       fixture,
       probeEndTimestamp
     );
+    const diagnostics = diagnoseScoreRecordShape(
+      mergedScoreRecords,
+      fixture,
+      probeEndTimestamp
+    );
     const ageHours = (nowTimestamp - fixture.startTimestamp) / (60 * MINUTE_MS);
 
     process.stdout.write("TXLINE LATEST HISTORICAL FIXTURE PROBE: PASS\n");
@@ -227,6 +236,9 @@ async function main(
     process.stdout.write(
       `Trusted score states: ${states.length === 0 ? "NONE" : states.join(" -> ")}\n`
     );
+    if (states.length === 0) {
+      process.stdout.write(formatScoreRecordShapeDiagnostics(diagnostics));
+    }
     process.stdout.write(
       `Result: ${states.length === 0 ? "NO_TRUSTED_SCORE_DATA" : "TRUSTED_SCORE_DATA_AVAILABLE"}\n`
     );
