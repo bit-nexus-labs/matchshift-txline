@@ -76,6 +76,8 @@ describe("opening score anchor diagnostics", () => {
     expect(diagnostics.maxParticipant1Goals).toBe(0);
     expect(diagnostics.maxParticipant2Goals).toBe(1);
     expect(diagnostics.goalActionRecords).toBe(1);
+    expect(diagnostics.uniqueGoalTransitions).toBe(1);
+    expect(diagnostics.duplicateGoalActionRecords).toBe(0);
     expect(diagnostics.normalizedGoalEvents).toBe(1);
     expect(diagnostics.homeGoalEvents).toBe(0);
     expect(diagnostics.awayGoalEvents).toBe(1);
@@ -103,6 +105,36 @@ describe("opening score anchor diagnostics", () => {
     ]);
   });
 
+  it("deduplicates repeated provider records for one score transition", () => {
+    const repeatedGoal = {
+      FixtureId: fixture.fixtureId,
+      StartTime: START,
+      Action: "Goal",
+      GameState: "Live",
+      DataSoccer: {
+        Participant: "Participant1",
+        Minutes: 106
+      },
+      Score: {
+        Participant1: { Total: { Goals: 1 } }
+      }
+    };
+    const diagnostics = diagnoseOpeningScoreAnchors(
+      [
+        { ...repeatedGoal, Seq: 10, Ts: START + 106 * 60_000 },
+        { ...repeatedGoal, Seq: 11, Ts: START + 106 * 60_000 + 2_000 },
+        { ...repeatedGoal, Seq: 12, Ts: START + 106 * 60_000 + 4_000 }
+      ],
+      fixture
+    );
+
+    expect(diagnostics.goalActionRecords).toBe(3);
+    expect(diagnostics.uniqueGoalTransitions).toBe(1);
+    expect(diagnostics.duplicateGoalActionRecords).toBe(2);
+    expect(diagnostics.normalizedGoalEvents).toBe(3);
+    expect(diagnostics.maxParticipant1Goals).toBe(1);
+  });
+
   it("formats only aggregate and bounded transition evidence", () => {
     const output = formatOpeningScoreAnchorDiagnostics({
       records: 2,
@@ -115,9 +147,11 @@ describe("opening score anchor diagnostics", () => {
       runningClockRecords: 1,
       participant1GoalRecords: 1,
       participant2GoalRecords: 0,
-      goalActionRecords: 1,
-      normalizedGoalEvents: 1,
-      homeGoalEvents: 1,
+      goalActionRecords: 3,
+      uniqueGoalTransitions: 1,
+      duplicateGoalActionRecords: 2,
+      normalizedGoalEvents: 3,
+      homeGoalEvents: 3,
       awayGoalEvents: 0,
       unknownGoalEvents: 0,
       firstGoalOffsetSeconds: 60,
@@ -131,17 +165,19 @@ describe("opening score anchor diagnostics", () => {
           rootKickoff: true
         }
       ],
-      topLevelActions: [{ value: "goal", count: 1 }],
+      topLevelActions: [{ value: "goal", count: 3 }],
       nestedSoccerActions: [],
       gameStates: [{ value: "live", count: 2 }]
     });
 
     expect(output).toContain("earliest-offset=1s");
     expect(output).toContain("root-kickoff=1");
-    expect(output).toContain("Goal action evidence: actions=1; normalized=1");
+    expect(output).toContain(
+      "Goal action evidence: records=3; unique-transitions=1; duplicates=2"
+    );
     expect(output).toContain("team=HOME");
     expect(output).toContain("p1=1");
-    expect(output).toContain("Top-level action enums: goal=1");
+    expect(output).toContain("Top-level action enums: goal=3");
     expect(output).toContain("Soccer action enums: NONE");
     expect(output).not.toContain(fixture.fixtureId);
   });
