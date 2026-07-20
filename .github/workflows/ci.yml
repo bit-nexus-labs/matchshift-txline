@@ -4,49 +4,7 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-
 jobs:
-  diagnose-tests:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          show-progress: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.7.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: pnpm install --frozen-lockfile --reporter=silent
-      - name: Publish concise failing-test diagnostics
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set +e
-          pnpm test > test-output.txt 2>&1
-          STATUS=$?
-          if [ "$STATUS" -ne 0 ]; then
-            gh pr view "$PR_NUMBER" --json body --jq .body \
-              | sed '/<!-- CI_DIAGNOSTICS -->/,$d' > pr-body.md
-            {
-              echo
-              echo '<!-- CI_DIAGNOSTICS -->'
-              echo '## Temporary CI diagnostics'
-              echo '```text'
-              sed -r 's/\x1B\[[0-9;]*[mK]//g' test-output.txt | tail -n 80
-              echo '```'
-            } >> pr-body.md
-            gh pr edit "$PR_NUMBER" --body-file pr-body.md
-          fi
-          exit $STATUS
-
   verify:
     runs-on: ubuntu-latest
     steps:
