@@ -2,12 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveTxlineOrigin, type TxlineNetwork } from "./config.js";
 import { buildScoreHistoryBuckets } from "./curated-replay-source.js";
-import {
-  TxlineCredentialError,
-  TxlineCredentials,
-  type FetchLike
-} from "./credentials.js";
-import { TxlineHttpClient, TxlineHttpError } from "./http-client.js";
+import { TxlineHttpClient } from "./http-client.js";
 import {
   historicalFixtureStartEpochDay,
   selectLatestHistoricalEligibleFixture
@@ -16,31 +11,24 @@ import { normalizeFixtures } from "./normalizer.js";
 import {
   assertPrivateCaptureOutputPath,
   defaultPrivateCapturePath,
-  parsePrivateRawCaptureBody,
   type PrivateRawCaptureResponse
 } from "./private-raw-capture.js";
+import {
+  PrivateRawRequester,
+  type PrivateCaptureAccept
+} from "./private-raw-requester.js";
 import { sanitizedErrorMessage } from "./redaction.js";
 
 const MINUTE_MS = 60_000;
 const DEFAULT_WINDOW_MINUTES = 180;
 const MAX_WINDOW_MINUTES = 350;
-const OPENING_SNAPSHOT_OFFSETS_MS = [
-  0,
-  1_000,
-  5_000,
-  15_000,
-  30_000,
-  60_000,
-  120_000
-] as const;
-
-type CaptureAccept = "application/json" | "text/event-stream";
+const OPENING_SNAPSHOT_OFFSETS_MS = [0, 1_000, 5_000, 15_000, 30_000, 60_000, 120_000] as const;
 
 interface PrivateCaptureFailure {
   label: string;
   method: "GET";
   path: string;
-  accept: CaptureAccept;
+  accept: PrivateCaptureAccept;
   requestedAtUtc: string;
   error: string;
 }
@@ -65,11 +53,7 @@ function readPositiveInteger(
     return fallback;
   }
   const parsed = Number(value);
-  if (
-    !Number.isSafeInteger(parsed) ||
-    parsed <= 0 ||
-    (maximum !== undefined && parsed > maximum)
-  ) {
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || (maximum !== undefined && parsed > maximum)) {
     throw new Error(
       maximum === undefined
         ? `${name} must be a positive integer.`
@@ -88,101 +72,6 @@ function addQuery(
     query.set(key, String(value));
   }
   return `${route}?${query.toString()}`;
-}
-
-class PrivateRawRequester {
-  readonly #apiOrigin: string;
-  readonly #requestTimeoutMs: number;
-  readonly #fetchFn: FetchLike;
-  readonly #credentials: TxlineCredentials;
-
-  constructor(options: {
-    apiOrigin: string;
-    apiToken: string;
-    requestTimeoutMs: number;
-    fetchFn?: FetchLike;
-  }) {
-    this.#apiOrigin = options.apiOrigin;
-    this.#requestTimeoutMs = options.requestTimeoutMs;
-    this.#fetchFn = options.fetchFn ?? fetch;
-    this.#credentials = new TxlineCredentials(options);
-  }
-
-  sanitize(value: string): string {
-    return this.#credentials.sanitize(value);
-  }
-
-  async capture(
-    label: string,
-    requestPath: string,
-    accept: CaptureAccept = "application/json"
-  ): Promise<PrivateRawCaptureResponse> {
-    const requestedAtUtc = new Date().toISOString();
-    const signal = AbortSignal.timeout(this.#requestTimeoutMs);
-    let attempts = 1;
-
-    try {
-      let response = await this.#requestOnce(requestPath, accept, false, signal);
-      if (response.status === 401) {
-        await response.body?.cancel();
-        attempts = 2;
-        response = await this.#requestOnce(requestPath, accept, true, signal);
-      }
-
-      const bodyText = await response.text();
-      const contentType = response.headers.get("content-type") ?? undefined;
-      const contentLengthHeader =
-        response.headers.get("content-length") ?? undefined;
-
-      return {
-        label,
-        method: "GET",
-        path: requestPath,
-        accept,
-        requestedAtUtc,
-        attempts,
-        status: response.status,
-        ok: response.ok,
-        ...(contentType === undefined ? {} : { contentType }),
-        ...(contentLengthHeader === undefined ? {} : { contentLengthHeader }),
-        byteLength: Buffer.byteLength(bodyText, "utf8"),
-        bodyText,
-        parse: parsePrivateRawCaptureBody(bodyText, contentType)
-      };
-    } catch (error) {
-      if (error instanceof TxlineCredentialError || error instanceof TxlineHttpError) {
-        throw error;
-      }
-      if (signal.aborted) {
-        throw new TxlineHttpError(
-          "TIMEOUT",
-          "TxLINE private capture request timed out."
-        );
-      }
-      throw new TxlineHttpError(
-        "NETWORK_ERROR",
-        "TxLINE private capture request failed."
-      );
-    }
-  }
-
-  async #requestOnce(
-    requestPath: string,
-    accept: CaptureAccept,
-    refreshGuestJwt: boolean,
-    signal: AbortSignal
-  ): Promise<Response> {
-    const headers = await this.#credentials.buildDataHeaders(
-      accept,
-      refreshGuestJwt,
-      signal
-    );
-    return this.#fetchFn(new URL(requestPath, this.#apiOrigin), {
-      method: "GET",
-      headers,
-      signal
-    });
-  }
 }
 
 async function main(
@@ -209,8 +98,7 @@ async function main(
       MAX_WINDOW_MINUTES
     );
     const outputPath = assertPrivateCaptureOutputPath(
-      env.TXLINE_PRIVATE_CAPTURE_OUTPUT_PATH?.trim() ||
-        defaultPrivateCapturePath()
+      env.TXLINE_PRIVATE_CAPTURE_OUTPUT_PATH?.trim() || defaultPrivateCapturePath()
     );
 
     const nowTimestamp = Date.now();
@@ -218,10 +106,8 @@ async function main(
     const sourceOptions = { apiOrigin, apiToken, requestTimeoutMs };
     const fixtureStartEpochDay = historicalFixtureStartEpochDay(nowTimestamp);
 
-    const fixtureClient = new TxlineHttpClient(sourceOptions);
-    const fixturePayload = await fixtureClient.fetchFixturesSnapshotForDay(
-      fixtureStartEpochDay
-    );
+    const fixturePayload = await new TxlineHttpClient(sourceOptions)
+      .fetchFixturesSnapshotForDay(fixtureStartEpochDay);
     const fixtures = normalizeFixtures(fixturePayload);
     const fixture = selectLatestHistoricalEligibleFixture(fixtures, nowTimestamp);
     const probeEndTimestamp = Math.min(
@@ -233,36 +119,34 @@ async function main(
       probeEndTimestamp
     );
 
-    requester = new PrivateRawRequester(sourceOptions);
+    const activeRequester = new PrivateRawRequester(sourceOptions);
+    requester = activeRequester;
     const entries: PrivateCaptureEntry[] = [];
 
     const capture = async (
       label: string,
       requestPath: string,
-      accept: CaptureAccept = "application/json"
+      accept: PrivateCaptureAccept = "application/json"
     ): Promise<void> => {
       try {
-        entries.push(await requester?.capture(label, requestPath, accept));
+        entries.push(await activeRequester.capture(label, requestPath, accept));
       } catch (error) {
-        const message = requester?.sanitize(
-          sanitizedErrorMessage(error, [apiToken])
-        ) ?? sanitizedErrorMessage(error, [apiToken]);
         entries.push({
           label,
           method: "GET",
           path: requestPath,
           accept,
           requestedAtUtc: new Date().toISOString(),
-          error: message
+          error: activeRequester.sanitize(
+            sanitizedErrorMessage(error, [apiToken])
+          )
         });
       }
     };
 
     await capture(
       "fixtures-snapshot-discovery",
-      addQuery("/api/fixtures/snapshot", {
-        startEpochDay: fixtureStartEpochDay
-      })
+      addQuery("/api/fixtures/snapshot", { startEpochDay: fixtureStartEpochDay })
     );
 
     const fixtureDate = new Date(fixture.startTimestamp);
@@ -335,6 +219,7 @@ async function main(
       );
     }
 
+    const failedRequests = entries.filter((entry) => "error" in entry).length;
     const document = {
       warning: "PRIVATE_PROVIDER_DATA_DO_NOT_PUBLISH_OR_COMMIT",
       formatVersion: 1,
@@ -361,14 +246,15 @@ async function main(
       },
       requestSummary: {
         total: entries.length,
-        succeeded: entries.filter((entry) => "status" in entry).length,
-        failed: entries.filter((entry) => "error" in entry).length
+        succeeded: entries.length - failedRequests,
+        failed: failedRequests
       },
       entries
     };
 
-    const serialized = JSON.stringify(document, null, 2) + "\n";
-    const sanitized = requester.sanitize(serialized);
+    const sanitized = activeRequester.sanitize(
+      JSON.stringify(document, null, 2) + "\n"
+    );
     if (sanitized.includes(apiToken)) {
       throw new Error("Private capture credential redaction failed.");
     }
@@ -384,11 +270,13 @@ async function main(
       `Start UTC: ${new Date(fixture.startTimestamp).toISOString()}\n`
     );
     process.stdout.write(`Captured requests: ${entries.length}\n`);
+    process.stdout.write(`Failed requests retained as metadata: ${failedRequests}\n`);
     process.stdout.write(
-      `Failed requests retained as metadata: ${entries.filter((entry) => "error" in entry).length}\n`
+      `Private output: ${path.relative(process.cwd(), outputPath)}\n`
     );
-    process.stdout.write(`Private output: ${path.relative(process.cwd(), outputPath)}\n`);
-    process.stdout.write("Git status should remain clean because artifacts/private/ is ignored.\n");
+    process.stdout.write(
+      "Git status should remain clean because artifacts/private/ is ignored.\n"
+    );
   } catch (error) {
     const baseMessage = sanitizedErrorMessage(error, [apiToken]);
     const message = requester?.sanitize(baseMessage) ?? baseMessage;
