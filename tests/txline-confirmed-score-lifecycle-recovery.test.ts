@@ -204,10 +204,13 @@ describe("confirmed completed TxLINE score lifecycle recovery", () => {
       fixture
     ) as Array<Record<string, any>>;
 
-    expect(recovered).toHaveLength(7);
-    expect(recovered.map((record) => record.Seq)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(recovered).toHaveLength(8);
+    expect(recovered.map((record) => record.Seq)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8
+    ]);
     expect(recovered.map((record) => record.Action)).toEqual([
       "matchshift_baseline",
+      "matchshift_event",
       "matchshift_event",
       "goal",
       "matchshift_event",
@@ -230,7 +233,7 @@ describe("confirmed completed TxLINE score lifecycle recovery", () => {
         Participant2: { Total: { Goals: 0 } }
       }
     });
-    expect(recovered[2]).toMatchObject({
+    expect(recovered[3]).toMatchObject({
       Ts: KICKOFF + 6_339_000,
       Participant: 1,
       DataSoccer: {
@@ -264,12 +267,19 @@ describe("confirmed completed TxLINE score lifecycle recovery", () => {
 
     expect(events.map((event) => event.eventType)).toEqual([
       "KICKOFF",
+      "GOAL_DISALLOWED",
       "GOAL",
       "VAR_OVERTURNED",
       "GOAL_DISALLOWED",
       "MATCH_FINAL"
     ]);
     expect(events[1]).toMatchObject({
+      eventType: "GOAL_DISALLOWED",
+      team: "AWAY",
+      matchSecond: 5_739,
+      importance: "KEY"
+    });
+    expect(events[2]).toMatchObject({
       team: "HOME",
       minute: 106,
       matchSecond: 6_339,
@@ -278,12 +288,12 @@ describe("confirmed completed TxLINE score lifecycle recovery", () => {
       phase: "EXTRA_TIME_SECOND_HALF",
       sourceTimestamp: KICKOFF + 6_339_000
     });
-    expect(events[2]).toMatchObject({
+    expect(events[3]).toMatchObject({
       eventType: "VAR_OVERTURNED",
       matchSecond: 6_780,
       label: "VAR: decision overturned"
     });
-    expect(events[3]).toMatchObject({
+    expect(events[4]).toMatchObject({
       eventType: "GOAL_DISALLOWED",
       team: "HOME",
       matchSecond: 6_780
