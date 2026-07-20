@@ -5,6 +5,7 @@ import type { MatchDefinition, MatchRecord } from "../core/types.js";
 import { compareMatchRecords } from "../core/visibility.js";
 import type { TxlineNetwork } from "./config.js";
 import {
+  buildCuratedMatchDefinition,
   CuratedReplayError,
   renderCuratedReplayModule,
   selectCuratedFixture,
@@ -19,13 +20,10 @@ import {
 import {
   normalizeFixtures,
   normalizeOddsPayload,
+  normalizeScorePayload,
   parseSourceTimestamp,
   type NormalizedFixture
 } from "./normalizer.js";
-import {
-  buildRichCuratedMatchDefinition,
-  normalizeCuratedScorePayload
-} from "./rich-curated-replay.js";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -188,7 +186,7 @@ export function normalizeCuratedHistoricalScores(
 
   for (const item of items) {
     if (!baselineFound) {
-      const baseline = normalizeCuratedScorePayload(item, {
+      const baseline = normalizeScorePayload(item, {
         fixture,
         receivedTimestamp,
         snapshot: true
@@ -204,7 +202,7 @@ export function normalizeCuratedHistoricalScores(
       continue;
     }
 
-    const normalized = normalizeCuratedScorePayload(item, {
+    const normalized = normalizeScorePayload(item, {
       fixture,
       receivedTimestamp
     });
@@ -213,7 +211,7 @@ export function normalizeCuratedHistoricalScores(
     }
 
     if (normalized.safeHold || normalized.issues.length > 0) {
-      const recovery = normalizeCuratedScorePayload(item, {
+      const recovery = normalizeScorePayload(item, {
         fixture,
         receivedTimestamp,
         snapshot: true
@@ -239,7 +237,7 @@ export function normalizeCuratedHistoricalScores(
         latestSequence !== undefined &&
         sequence === latestSequence + 1;
       if (!contiguous) {
-        const recovery = normalizeCuratedScorePayload(item, {
+        const recovery = normalizeScorePayload(item, {
           fixture,
           receivedTimestamp,
           snapshot: true
@@ -458,7 +456,7 @@ export async function exportCuratedCompletedMatch(
     );
   }
 
-  const match = buildRichCuratedMatchDefinition({
+  const match = buildCuratedMatchDefinition({
     fixture,
     scoreRecords,
     oddsRecords,

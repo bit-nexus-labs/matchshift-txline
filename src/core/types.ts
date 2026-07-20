@@ -6,42 +6,6 @@ export type TeamSide = "HOME" | "AWAY";
 export type Provenance = "SYNTHETIC" | "TXLINE";
 export type SourceOrderDomain = "TXLINE_SCORES" | "TXLINE_ODDS";
 
-export const MATCH_EVENT_TYPES = [
-  "KICKOFF",
-  "PERIOD_START",
-  "HALF_TIME",
-  "EXTRA_TIME_START",
-  "MATCH_FINAL",
-  "GOAL",
-  "GOAL_DISALLOWED",
-  "VAR_REVIEW",
-  "VAR_OVERTURNED",
-  "YELLOW_CARD",
-  "RED_CARD",
-  "CORNER",
-  "SHOT",
-  "FREE_KICK",
-  "SUBSTITUTION",
-  "INJURY",
-  "PENALTY",
-  "OFFSIDE",
-  "THROW_IN",
-  "GOAL_KICK",
-  "ADDED_TIME"
-] as const;
-
-export type MatchEventType = (typeof MATCH_EVENT_TYPES)[number];
-export type MatchEventImportance = "KEY" | "FULL";
-export type MatchPhase =
-  | "PRE_MATCH"
-  | "FIRST_HALF"
-  | "HALF_TIME"
-  | "SECOND_HALF"
-  | "EXTRA_TIME_FIRST_HALF"
-  | "EXTRA_TIME_BREAK"
-  | "EXTRA_TIME_SECOND_HALF"
-  | "FINISHED";
-
 export interface Score {
   home: number;
   away: number;
@@ -75,15 +39,9 @@ interface BaseMatchRecord {
 
 export interface MatchEventRecord extends BaseMatchRecord {
   kind: "event";
-  eventType: MatchEventType;
+  eventType: "KICKOFF" | "GOAL";
   team?: TeamSide;
   minute: number;
-  /** Optional second within the match clock for precise cursor placement. */
-  matchSecond?: number;
-  /** Human-readable product copy. Never store raw provider text here. */
-  label?: string;
-  importance?: MatchEventImportance;
-  phase?: MatchPhase;
 }
 
 export interface OddsRecord extends BaseMatchRecord {
@@ -141,10 +99,6 @@ export interface VisibleEvent {
   eventType: MatchEventRecord["eventType"];
   minute: number;
   team?: TeamSide;
-  matchSecond?: number;
-  label?: string;
-  importance?: MatchEventImportance;
-  phase?: MatchPhase;
 }
 
 export interface SafetyStatus {
