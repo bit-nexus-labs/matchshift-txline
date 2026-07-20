@@ -3,6 +3,7 @@ import type {
   ImpliedProbabilities,
   MatchDefinition,
   MatchEventRecord,
+  MatchEventType,
   Score,
   TeamVisibleStatistics,
   ViewerSession,
@@ -11,6 +12,10 @@ import type {
   VisibleMatchStatistics
 } from "./types.js";
 import { effectiveVisibilityCursor, recordsVisibleAtCursor } from "./visibility.js";
+
+function effectiveEventType(record: MatchEventRecord): MatchEventType {
+  return record.activityType ?? record.eventType;
+}
 
 function toVisibleEvent(record: MatchEventRecord): VisibleEvent | undefined {
   const sequence = record.sequence ?? record.sourceOrder?.sourceSequence;
@@ -22,7 +27,7 @@ function toVisibleEvent(record: MatchEventRecord): VisibleEvent | undefined {
     eventId: record.recordId,
     sequence,
     sourceTimestamp: record.sourceTimestamp,
-    eventType: record.eventType,
+    eventType: effectiveEventType(record),
     minute: record.minute,
     importance: record.importance ?? "STANDARD",
     category: record.category ?? "MATCH",
@@ -57,7 +62,7 @@ function applyEventStatistics(
     return;
   }
   const target = record.team === "HOME" ? statistics.home : statistics.away;
-  switch (record.eventType) {
+  switch (effectiveEventType(record)) {
     case "SHOT":
       target.shots += 1;
       if (record.outcome === "OnTarget") {
