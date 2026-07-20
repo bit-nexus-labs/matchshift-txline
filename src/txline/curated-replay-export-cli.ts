@@ -4,6 +4,7 @@ import { createCuratedPartialReplaySource } from "./curated-partial-replay-sourc
 import { exportCuratedCompletedMatch } from "./curated-replay-exporter.js";
 import { createCuratedReplaySource } from "./curated-replay-source.js";
 import { CuratedReplayError, type CuratedFixtureSelector } from "./curated-replay.js";
+import { createPrivateCaptureCuratedReplaySource } from "./private-capture-curated-replay-source.js";
 import { sanitizedErrorMessage } from "./redaction.js";
 
 function readNetwork(value: string | undefined): TxlineNetwork {
@@ -75,11 +76,13 @@ export async function curatedReplayExportCli(
   env: Readonly<Record<string, string | undefined>> = process.env
 ): Promise<void> {
   const apiToken = env.TXLINE_API_TOKEN?.trim() ?? "";
+  const privateCapturePath =
+    env.TXLINE_CURATED_PRIVATE_CAPTURE_PATH?.trim() ?? "";
   try {
-    if (apiToken === "") {
+    if (apiToken === "" && privateCapturePath === "") {
       throw new CuratedReplayError(
         "CURATED_TOKEN_REQUIRED",
-        "TXLINE_API_TOKEN is required for the curated replay export."
+        "TXLINE_API_TOKEN is required unless TXLINE_CURATED_PRIVATE_CAPTURE_PATH is provided."
       );
     }
     const network = readNetwork(env.TXLINE_NETWORK ?? env.TXLINE_MODE);
@@ -99,11 +102,6 @@ export async function curatedReplayExportCli(
       120,
       "TXLINE_CURATED_DURATION_MINUTES"
     );
-    const sourceOptions = {
-      apiOrigin: resolveTxlineOrigin(network),
-      apiToken,
-      requestTimeoutMs
-    };
     const outputPath = env.TXLINE_CURATED_OUTPUT_PATH?.trim();
     const receiptPath = env.TXLINE_CURATED_RECEIPT_PATH?.trim();
     const competitionId = env.TXLINE_COMPETITION_ID?.trim();
@@ -131,6 +129,25 @@ export async function curatedReplayExportCli(
     const allowPartialOpening = readBoolean(
       env.TXLINE_CURATED_ALLOW_PARTIAL_OPENING
     );
+    if (privateCapturePath !== "" && allowPartialOpening) {
+      throw new CuratedReplayError(
+        "CURATED_CONFIGURATION_INVALID",
+        "Private full capture export requires complete score lifecycle recovery and cannot enable partial opening disclosure."
+      );
+    }
+
+    const privateClient =
+      privateCapturePath === ""
+        ? undefined
+        : await createPrivateCaptureCuratedReplaySource({
+            inputPath: privateCapturePath,
+            expectedNetwork: network
+          });
+    const sourceOptions = {
+      apiOrigin: resolveTxlineOrigin(network),
+      apiToken,
+      requestTimeoutMs
+    };
     const result = allowPartialOpening
       ? await exportCuratedCompletedMatchWithDisclosure({
           ...exportOptions,
@@ -141,10 +158,14 @@ export async function curatedReplayExportCli(
         })
       : await exportCuratedCompletedMatch({
           ...exportOptions,
-          client: createCuratedReplaySource(sourceOptions)
+          client:
+            privateClient ?? createCuratedReplaySource(sourceOptions)
         });
 
     process.stdout.write("TXLINE CURATED COMPLETED-MATCH EXPORT: PASS\n");
+    process.stdout.write(
+      `Source: ${privateClient === undefined ? "authenticated TxLINE" : "private full capture"}\n`
+    );
     process.stdout.write(`Generated module: ${result.outputPath}\n`);
     process.stdout.write(`Private receipt: ${result.receiptPath}\n`);
     process.stdout.write(
