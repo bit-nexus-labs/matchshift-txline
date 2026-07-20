@@ -4,9 +4,11 @@ import type {
   MatchDefinition,
   MatchEventRecord,
   Score,
+  TeamVisibleStatistics,
   ViewerSession,
   VisibleEvent,
-  VisibleMatchState
+  VisibleMatchState,
+  VisibleMatchStatistics
 } from "./types.js";
 import { effectiveVisibilityCursor, recordsVisibleAtCursor } from "./visibility.js";
 
@@ -22,17 +24,89 @@ function toVisibleEvent(record: MatchEventRecord): VisibleEvent | undefined {
     sourceTimestamp: record.sourceTimestamp,
     eventType: record.eventType,
     minute: record.minute,
-    ...(record.team === undefined ? {} : { team: record.team })
+    importance: record.importance ?? "STANDARD",
+    category: record.category ?? "MATCH",
+    ...(record.team === undefined ? {} : { team: record.team }),
+    ...(record.clockLabel === undefined ? {} : { clockLabel: record.clockLabel }),
+    ...(record.label === undefined ? {} : { label: record.label }),
+    ...(record.detail === undefined ? {} : { detail: record.detail }),
+    ...(record.outcome === undefined ? {} : { outcome: record.outcome })
   };
+}
+
+function emptyTeamStatistics(): TeamVisibleStatistics {
+  return {
+    shots: 0,
+    shotsOnTarget: 0,
+    corners: 0,
+    yellowCards: 0,
+    redCards: 0,
+    substitutions: 0,
+    freeKicks: 0,
+    throwIns: 0,
+    goalKicks: 0,
+    injuries: 0
+  };
+}
+
+function applyEventStatistics(
+  statistics: VisibleMatchStatistics,
+  record: MatchEventRecord
+): void {
+  if (record.team !== "HOME" && record.team !== "AWAY") {
+    return;
+  }
+  const target = record.team === "HOME" ? statistics.home : statistics.away;
+  switch (record.eventType) {
+    case "SHOT":
+      target.shots += 1;
+      if (record.outcome === "OnTarget") {
+        target.shotsOnTarget += 1;
+      }
+      break;
+    case "CORNER":
+      target.corners += 1;
+      break;
+    case "YELLOW_CARD":
+      target.yellowCards += 1;
+      break;
+    case "RED_CARD":
+      target.redCards += 1;
+      break;
+    case "SUBSTITUTION":
+      target.substitutions += 1;
+      break;
+    case "FREE_KICK":
+      target.freeKicks += 1;
+      break;
+    case "THROW_IN":
+      target.throwIns += 1;
+      break;
+    case "GOAL_KICK":
+      target.goalKicks += 1;
+      break;
+    case "INJURY":
+      target.injuries += 1;
+      break;
+    default:
+      break;
+  }
 }
 
 function explainLatestEvent(event: VisibleEvent, score: Score): string {
   if (event.eventType === "KICKOFF") {
     return "Kickoff is now visible to this viewer.";
   }
+  if (event.eventType === "GOAL") {
+    const team = event.team === "HOME" ? "Home" : "Away";
+    return `${event.label ?? `${team} goal`} at ${event.clockLabel ?? `minute ${event.minute}`}. The visible score is ${score.home}-${score.away}.`;
+  }
 
-  const team = event.team === "HOME" ? "Home" : "Away";
-  return `${team} scored at minute ${event.minute}. The visible score is ${score.home}-${score.away}.`;
+  const title = event.label ?? event.eventType.replaceAll("_", " ").toLowerCase();
+  const timing = event.clockLabel ?? `minute ${event.minute}`;
+  return event.detail === undefined
+    ? `${title} at ${timing}.`
+    : `${title} at ${timing}. ${event.detail}`;
 }
 
 export function deriveVisibleMatchState(
@@ -49,6 +123,10 @@ export function deriveVisibleMatchState(
   let score: Score = { home: 0, away: 0 };
   let impliedProbabilities: ImpliedProbabilities | undefined;
   const events: VisibleEvent[] = [];
+  const statistics: VisibleMatchStatistics = {
+    home: emptyTeamStatistics(),
+    away: emptyTeamStatistics()
+  };
 
   for (const record of safety.trustedRecords) {
     if (record.kind === "recovery") {
@@ -69,6 +147,7 @@ export function deriveVisibleMatchState(
         score = { ...score, away: score.away + 1 };
       }
     }
+    applyEventStatistics(statistics, record);
 
     const visibleEvent = toVisibleEvent(record);
     if (visibleEvent !== undefined) {
@@ -98,6 +177,7 @@ export function deriveVisibleMatchState(
     },
     score,
     events,
+    statistics,
     ...(impliedProbabilities === undefined ? {} : { impliedProbabilities }),
     ...(latestEvent === undefined || latestTrustedRecord?.kind === "recovery"
       ? {}
