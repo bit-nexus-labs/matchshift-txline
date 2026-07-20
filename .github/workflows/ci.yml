@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  diagnose-typecheck:
+  diagnose-tests:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -24,17 +24,17 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile --reporter=silent
-      - name: Post concise typecheck diagnostics
+      - name: Post concise test diagnostics
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          OUTPUT=$(pnpm exec tsc -p tsconfig.json --noEmit --pretty false 2>&1)
+          OUTPUT=$(pnpm exec vitest run --reporter=basic 2>&1)
           STATUS=$?
           {
-            echo '### Temporary typecheck diagnostics'
+            echo '### Temporary test diagnostics'
             echo '```text'
-            printf '%s\n' "$OUTPUT"
+            printf '%s\n' "$OUTPUT" | tail -n 240
             echo '```'
           } | gh pr comment "${{ github.event.pull_request.number }}" --body-file -
           exit $STATUS
