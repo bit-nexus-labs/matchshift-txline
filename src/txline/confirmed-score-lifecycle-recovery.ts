@@ -3,6 +3,11 @@ import {
   parseSourceTimestamp,
   type NormalizedFixture
 } from "./normalizer.js";
+import {
+  buildSanitizedResolvedLifecycleEvents,
+  type ResolvedLifecycleAction,
+  type SanitizedResolvedLifecycleEvent
+} from "./resolved-rich-lifecycle-events.js";
 
 type UnknownRecord = Record<string, unknown>;
 type Participant = "Participant1" | "Participant2";
@@ -23,7 +28,20 @@ interface ConfirmedGoal {
   record: UnknownRecord;
 }
 
+interface CompletedLifecycleContext {
+  actions: DirectAction[];
+  kickoff: DirectAction;
+  final: DirectAction;
+  finalClock: number;
+}
+
 const MAX_MATCH_CLOCK_SECONDS = 5 * 60 * 60;
+const TECHNICAL_LIFECYCLE_ACTIONS = new Set([
+  "action_amend",
+  "action_discarded",
+  "clock_update",
+  "safe_possession"
+]);
 
 function asRecord(value: unknown): UnknownRecord | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -122,6 +140,22 @@ function participant(record: UnknownRecord): Participant | undefined {
   return undefined;
 }
 
+function nestedData(record: UnknownRecord): UnknownRecord | undefined {
+  return asRecord(
+    record.DataSoccer ?? record.dataSoccer ?? record.Data ?? record.data
+  );
+}
+
+function nestedAction(record: UnknownRecord): string | undefined {
+  const data = nestedData(record);
+  return readStringLike(data?.Action ?? data?.action)?.toLowerCase();
+}
+
+function outcome(record: UnknownRecord): string | undefined {
+  const data = nestedData(record);
+  return readStringLike(data?.Outcome ?? data?.outcome)?.toLowerCase();
+}
+
 function scoreContainer(record: UnknownRecord): UnknownRecord | undefined {
   return asRecord(
     record.scoreSoccer ?? record.ScoreSoccer ?? record.score ?? record.Score
@@ -218,6 +252,31 @@ function finalAction(actions: readonly DirectAction[]): DirectAction | undefined
   return [...actions].reverse().find((item) => item.action === "game_finalised");
 }
 
+function completedLifecycleContext(
+  records: readonly unknown[],
+  fixture: NormalizedFixture
+): CompletedLifecycleContext {
+  const actions = completedFixtureActions(records, fixture);
+  const kickoff = confirmedOpeningKickoff(actions);
+  const final = finalAction(actions);
+  if (kickoff === undefined || final === undefined || final.sequence <= kickoff.sequence) {
+    throw new TxlineHttpError(
+      "SCORE_LIFECYCLE_ANCHOR_MISSING",
+      "Completed TxLINE score history lacked a confirmed opening kickoff or final action."
+    );
+  }
+  const finalClock = actions
+    .filter(
+      (item) =>
+        item.sequence >= kickoff.sequence && item.sequence <= final.sequence
+    )
+    .reduce(
+      (maximum, item) => Math.max(maximum, clockSeconds(item.record) ?? 0),
+      0
+    );
+  return { actions, kickoff, final, finalClock };
+}
+
 export function hasConfirmedCompletedScoreLifecycle(
   records: readonly unknown[],
   fixture: NormalizedFixture
@@ -226,20 +285,35 @@ export function hasConfirmedCompletedScoreLifecycle(
   return confirmedOpeningKickoff(actions) !== undefined && finalAction(actions) !== undefined;
 }
 
+function discardedActionIds(
+  actions: readonly DirectAction[],
+  kickoff: DirectAction,
+  final: DirectAction
+): Set<string> {
+  const discarded = new Set<string>();
+  for (const item of actions) {
+    if (
+      item.sequence >= kickoff.sequence &&
+      item.sequence <= final.sequence &&
+      item.action === "action_discarded" &&
+      item.actionId !== undefined
+    ) {
+      discarded.add(item.actionId);
+    }
+  }
+  return discarded;
+}
+
 function confirmedGoals(
   actions: readonly DirectAction[],
   kickoff: DirectAction,
   final: DirectAction
 ): ConfirmedGoal[] {
   const goalGroups = new Map<string, DirectAction[]>();
-  const discarded = new Set<string>();
+  const discarded = discardedActionIds(actions, kickoff, final);
 
   for (const item of actions) {
     if (item.sequence < kickoff.sequence || item.sequence > final.sequence) {
-      continue;
-    }
-    if (item.action === "action_discarded" && item.actionId !== undefined) {
-      discarded.add(item.actionId);
       continue;
     }
     if (item.action !== "goal") {
@@ -301,20 +375,100 @@ function confirmedGoals(
   return goals;
 }
 
+function resolvedNonGoalActions(
+  context: CompletedLifecycleContext
+): ResolvedLifecycleAction[] {
+  const discarded = discardedActionIds(
+    context.actions,
+    context.kickoff,
+    context.final
+  );
+  const groups = new Map<string, DirectAction[]>();
+
+  for (const item of context.actions) {
+    if (
+      item.sequence < context.kickoff.sequence ||
+      item.sequence > context.final.sequence ||
+      item.action === "goal" ||
+      item.action === "kickoff" ||
+      item.action === "game_finalised" ||
+      TECHNICAL_LIFECYCLE_ACTIONS.has(item.action) ||
+      item.actionId === undefined
+    ) {
+      continue;
+    }
+    const group = groups.get(item.actionId) ?? [];
+    group.push(item);
+    groups.set(item.actionId, group);
+  }
+
+  const resolved: ResolvedLifecycleAction[] = [];
+  for (const [actionId, versions] of groups) {
+    if (discarded.has(actionId)) {
+      continue;
+    }
+    const eligible = versions
+      .filter((item) => item.record.Confirmed !== false)
+      .sort(orderActions);
+    const latest = eligible.at(-1);
+    const seconds = latest === undefined ? undefined : clockSeconds(latest.record);
+    if (latest === undefined || seconds === undefined) {
+      continue;
+    }
+    const side = participant(latest.record);
+    const nested = nestedAction(latest.record);
+    const result = outcome(latest.record);
+    resolved.push({
+      sourceSequence: latest.sequence,
+      action: latest.action,
+      clockSeconds: seconds,
+      ...(side === undefined ? {} : { participant: side }),
+      ...(nested === undefined ? {} : { nestedAction: nested }),
+      ...(result === undefined ? {} : { outcome: result })
+    });
+  }
+  return resolved;
+}
+
+/**
+ * Resolves meaningful rich events through the same completed-score lifecycle
+ * boundary that validates kickoff, confirmed goals, discards, and final score.
+ * Returned values contain no provider identifiers or player data.
+ */
+export function recoverSanitizedCompletedRichEvents(
+  records: readonly unknown[],
+  fixture: NormalizedFixture
+): SanitizedResolvedLifecycleEvent[] {
+  const context = completedLifecycleContext(records, fixture);
+  const goals = confirmedGoals(context.actions, context.kickoff, context.final);
+  const actions: ResolvedLifecycleAction[] = [
+    {
+      sourceSequence: context.kickoff.sequence,
+      action: "kickoff",
+      clockSeconds: 0
+    },
+    ...goals.map((goal) => ({
+      sourceSequence: goal.sequence,
+      action: "goal",
+      clockSeconds: goal.clockSeconds,
+      participant: goal.participant
+    })),
+    ...resolvedNonGoalActions(context),
+    {
+      sourceSequence: context.final.sequence,
+      action: "game_finalised",
+      clockSeconds: context.finalClock
+    }
+  ];
+  return buildSanitizedResolvedLifecycleEvents(actions, fixture);
+}
+
 export function recoverConfirmedCompletedScoreLifecycle(
   records: readonly unknown[],
   fixture: NormalizedFixture
 ): unknown[] {
-  const actions = completedFixtureActions(records, fixture);
-  const kickoff = confirmedOpeningKickoff(actions);
-  const final = finalAction(actions);
-  if (kickoff === undefined || final === undefined || final.sequence <= kickoff.sequence) {
-    throw new TxlineHttpError(
-      "SCORE_LIFECYCLE_ANCHOR_MISSING",
-      "Completed TxLINE score history lacked a confirmed opening kickoff or final action."
-    );
-  }
-
+  const context = completedLifecycleContext(records, fixture);
+  const { actions, kickoff, final, finalClock } = context;
   const goals = confirmedGoals(actions, kickoff, final);
   let participant1Goals = 0;
   let participant2Goals = 0;
@@ -403,16 +557,6 @@ export function recoverConfirmedCompletedScoreLifecycle(
       "Confirmed goal lifecycles did not equal the TxLINE game_finalised score."
     );
   }
-
-  const finalClock = actions
-    .filter(
-      (item) =>
-        item.sequence >= kickoff.sequence && item.sequence <= final.sequence
-    )
-    .reduce(
-      (maximum, item) => Math.max(maximum, clockSeconds(item.record) ?? 0),
-      previousClock
-    );
   if (finalClock < previousClock) {
     throw new TxlineHttpError(
       "SCORE_LIFECYCLE_FINAL_CLOCK_INVALID",
