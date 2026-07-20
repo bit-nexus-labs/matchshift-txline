@@ -778,19 +778,21 @@ export function recoverConfirmedCompletedScoreLifecycle(
   }
 
   const timeline: RichLifecycleEvent[] = [
-    ...goals.confirmed.map((goal) => {
-      const team = sideForParticipant(goal.participant, fixture);
-      return {
-        eventType: "GOAL" as const,
-        importance: "KEY" as const,
-        label: "Goal",
-        clockSeconds: goal.clockSeconds,
-        sequence: goal.sequence,
-        phase: phaseForEvent("GOAL", goal.clockSeconds),
-        team,
-        goal
-      };
-    }),
+    ...goals.confirmed.map(
+      (goal): RichLifecycleEvent => {
+        const team = sideForParticipant(goal.participant, fixture);
+        return {
+          eventType: "GOAL",
+          importance: "KEY",
+          label: "Goal",
+          clockSeconds: goal.clockSeconds,
+          sequence: goal.sequence,
+          phase: phaseForEvent("GOAL", goal.clockSeconds),
+          team,
+          goal
+        };
+      }
+    ),
     ...goals.disallowed,
     ...meaningfulLifecycleEvents(actions, kickoff, final, fixture, discarded),
     {
@@ -801,7 +803,8 @@ export function recoverConfirmedCompletedScoreLifecycle(
       sequence: final.sequence,
       phase: "FINISHED"
     }
-  ].sort(
+  ];
+  timeline.sort(
     (left, right) =>
       left.clockSeconds - right.clockSeconds ||
       left.sequence - right.sequence ||
