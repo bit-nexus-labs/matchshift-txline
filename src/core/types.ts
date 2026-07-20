@@ -78,7 +78,10 @@ interface BaseMatchRecord {
 
 export interface MatchEventRecord extends BaseMatchRecord {
   kind: "event";
-  eventType: MatchEventType;
+  /** Backward-compatible score event used by the exporter and score reducer. */
+  eventType: "KICKOFF" | "GOAL";
+  /** Rich activity type for curated match chronology. */
+  activityType?: MatchEventType;
   team?: TeamSide;
   minute: number;
   clockLabel?: string;
