@@ -17,6 +17,7 @@
     "txline:smoke-reference": "tsx src/txline/reference-sse-smoke-cli.ts",
     "txline:probe-shape": "tsx src/txline/historical-shape-probe-cli.ts",
     "txline:probe-odds-shape": "tsx src/txline/historical-odds-shape-probe-cli.ts",
+    "txline:probe-latest-match": "tsx src/txline/latest-historical-fixture-cli.ts",
     "txline:provenance": "tsx src/txline/solana-provenance-cli.ts",
     "txline:live-observe": "tsx src/txline/live-observer-window-cli.ts",
     "txline:live-snapshot-observe": "tsx src/txline/live-snapshot-observer-cli.ts",
