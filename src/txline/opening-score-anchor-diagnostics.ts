@@ -42,6 +42,8 @@ export interface OpeningScoreAnchorDiagnostics {
   participant1GoalRecords: number;
   participant2GoalRecords: number;
   goalActionRecords: number;
+  uniqueGoalTransitions: number;
+  duplicateGoalActionRecords: number;
   normalizedGoalEvents: number;
   homeGoalEvents: number;
   awayGoalEvents: number;
@@ -150,6 +152,18 @@ function isGoalAction(action: string | undefined): boolean {
   return action === "goal" || action?.endsWith("_goal") === true;
 }
 
+function goalTransitionKey(
+  participant1Goals: number | undefined,
+  participant2Goals: number | undefined,
+  team: GoalTransitionEvidence["team"],
+  minute: number | undefined
+): string {
+  if (participant1Goals !== undefined || participant2Goals !== undefined) {
+    return `score:${participant1Goals ?? "?"}:${participant2Goals ?? "?"}`;
+  }
+  return `event:${team}:${minute ?? "?"}`;
+}
+
 export function diagnoseOpeningScoreAnchors(
   records: readonly unknown[],
   fixture: NormalizedFixture
@@ -157,6 +171,7 @@ export function diagnoseOpeningScoreAnchors(
   const topLevelActions = new Map<string, number>();
   const nestedSoccerActions = new Map<string, number>();
   const gameStates = new Map<string, number>();
+  const uniqueGoalTransitionKeys = new Set<string>();
 
   let fixtureScopedRecords = 0;
   let earliestOffsetSeconds: number | undefined;
@@ -282,6 +297,10 @@ export function diagnoseOpeningScoreAnchors(
       unknownGoalEvents += 1;
     }
 
+    uniqueGoalTransitionKeys.add(
+      goalTransitionKey(participant1, participant2, team, minute)
+    );
+
     if (goalTransitions.length < MAX_GOAL_TRANSITIONS) {
       goalTransitions.push({
         ...(offsetSeconds === undefined ? {} : { offsetSeconds }),
@@ -293,6 +312,8 @@ export function diagnoseOpeningScoreAnchors(
       });
     }
   }
+
+  const uniqueGoalTransitions = uniqueGoalTransitionKeys.size;
 
   return {
     records: records.length,
@@ -306,6 +327,11 @@ export function diagnoseOpeningScoreAnchors(
     participant1GoalRecords,
     participant2GoalRecords,
     goalActionRecords,
+    uniqueGoalTransitions,
+    duplicateGoalActionRecords: Math.max(
+      0,
+      goalActionRecords - uniqueGoalTransitions
+    ),
     normalizedGoalEvents,
     homeGoalEvents,
     awayGoalEvents,
@@ -353,7 +379,7 @@ export function formatOpeningScoreAnchorDiagnostics(
   return [
     `Opening anchor diagnostics: records=${diagnostics.records}; fixture-scoped=${diagnostics.fixtureScopedRecords}; earliest-offset=${earliest}; startTime-match=${diagnostics.startTimeMatches}; root-kickoff=${diagnostics.rootKickoffObjects}; clock=${diagnostics.clockRecords}; near-zero-clock=${diagnostics.nearZeroClockRecords}; running-clock=${diagnostics.runningClockRecords}`,
     `Opening anchor goal fields: participant1=${diagnostics.participant1GoalRecords}; participant2=${diagnostics.participant2GoalRecords}; max-p1=${formatOptionalNumber(diagnostics.maxParticipant1Goals)}; max-p2=${formatOptionalNumber(diagnostics.maxParticipant2Goals)}`,
-    `Goal action evidence: actions=${diagnostics.goalActionRecords}; normalized=${diagnostics.normalizedGoalEvents}; home=${diagnostics.homeGoalEvents}; away=${diagnostics.awayGoalEvents}; unknown=${diagnostics.unknownGoalEvents}; first-goal-offset=${firstGoal}`,
+    `Goal action evidence: records=${diagnostics.goalActionRecords}; unique-transitions=${diagnostics.uniqueGoalTransitions}; duplicates=${diagnostics.duplicateGoalActionRecords}; normalized=${diagnostics.normalizedGoalEvents}; home=${diagnostics.homeGoalEvents}; away=${diagnostics.awayGoalEvents}; unknown=${diagnostics.unknownGoalEvents}; first-goal-offset=${firstGoal}`,
     `Goal transition samples: ${transitions}`,
     `Top-level action enums: ${formatCounts(diagnostics.topLevelActions)}`,
     `Soccer action enums: ${formatCounts(diagnostics.nestedSoccerActions)}`,
