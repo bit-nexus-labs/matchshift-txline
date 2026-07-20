@@ -22,7 +22,11 @@ function toVisibleEvent(record: MatchEventRecord): VisibleEvent | undefined {
     sourceTimestamp: record.sourceTimestamp,
     eventType: record.eventType,
     minute: record.minute,
-    ...(record.team === undefined ? {} : { team: record.team })
+    ...(record.team === undefined ? {} : { team: record.team }),
+    ...(record.matchSecond === undefined ? {} : { matchSecond: record.matchSecond }),
+    ...(record.label === undefined ? {} : { label: record.label }),
+    ...(record.importance === undefined ? {} : { importance: record.importance }),
+    ...(record.phase === undefined ? {} : { phase: record.phase })
   };
 }
 
@@ -31,8 +35,12 @@ function explainLatestEvent(event: VisibleEvent, score: Score): string {
     return "Kickoff is now visible to this viewer.";
   }
 
-  const team = event.team === "HOME" ? "Home" : "Away";
-  return `${team} scored at minute ${event.minute}. The visible score is ${score.home}-${score.away}.`;
+  if (event.eventType === "GOAL") {
+    const team = event.team === "HOME" ? "Home" : "Away";
+    return `${team} scored at minute ${event.minute}. The visible score is ${score.home}-${score.away}.`;
+  }
+
+  return `${event.label ?? event.eventType} became visible at minute ${event.minute}.`;
 }
 
 export function deriveVisibleMatchState(
