@@ -10,7 +10,7 @@ afterEach(async () => {
 });
 
 describe("curated replay judge routes", () => {
-  it("keeps the curated entrypoint unavailable while the tracked module is empty", async () => {
+  it("publishes the validated Spain vs Argentina completed-match replay", async () => {
     app = buildApp({ env: { TXLINE_MODE: "synthetic" } });
     await app.ready();
 
@@ -19,15 +19,65 @@ describe("curated replay judge routes", () => {
       url: "/api/demo/curated/status"
     });
     expect(status.statusCode).toBe(200);
-    expect(status.json()).toEqual({ available: false });
+    expect(status.json()).toMatchObject({
+      available: true,
+      fixture: {
+        fixtureId: "spain-argentina-2026-07-19",
+        provenance: "TXLINE",
+        homeLabel: "Spain",
+        awayLabel: "Argentina",
+        demoKind: "CURATED"
+      },
+      note: "Single curated completed-match replay; not a provider feed or archive."
+    });
 
     const start = await app.inject({
       method: "POST",
       url: "/api/demo/curated/start",
       payload: {}
     });
-    expect(start.statusCode).toBe(404);
-    expect(start.json()).toEqual({ error: "CURATED_REPLAY_NOT_AVAILABLE" });
+    expect(start.statusCode).toBe(201);
+    const payload = start.json<{
+      fixture: {
+        fixtureId: string;
+        homeLabel: string;
+        awayLabel: string;
+        demoKind: string;
+        maxMinute: number;
+      };
+      live: {
+        session: { mode: string };
+        state: {
+          score: { home: number; away: number };
+          events: Array<{ eventType: string; minute: number }>;
+        };
+      };
+      personal: {
+        session: { mode: string };
+        state: {
+          score: { home: number; away: number };
+          events: Array<{ eventType: string; minute: number }>;
+        };
+      };
+    }>();
+
+    expect(payload.fixture).toMatchObject({
+      fixtureId: "spain-argentina-2026-07-19",
+      homeLabel: "Spain",
+      awayLabel: "Argentina",
+      demoKind: "CURATED",
+      maxMinute: 130
+    });
+    expect(payload.live.session.mode).toBe("LIVE");
+    expect(payload.live.state.score).toEqual({ home: 1, away: 0 });
+    expect(payload.live.state.events).toContainEqual(
+      expect.objectContaining({ eventType: "GOAL", minute: 106 })
+    );
+    expect(payload.personal.session.mode).toBe("REPLAY");
+    expect(payload.personal.state.score).toEqual({ home: 0, away: 0 });
+    expect(
+      payload.personal.state.events.some((event) => event.eventType === "GOAL")
+    ).toBe(false);
   });
 
   it("publishes dynamic display labels in the synthetic judge payload", async () => {
@@ -59,7 +109,7 @@ describe("curated replay judge routes", () => {
     expect(response.body).toContain('model.fixture.homeLabel + " goal"');
     expect(response.body).toContain('scoreHistory === "PARTIAL_OPENING"');
     expect(response.body).toContain("local 0-0 kickoff baseline");
-    expect(response.body).toContain("disclosed partial TxLINE replay ready");
+    expect(response.body).toContain("curated TxLINE replay ready");
     const script = response.body.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     expect(script).toBeDefined();
     expect(() => new Function(script ?? "")).not.toThrow();
