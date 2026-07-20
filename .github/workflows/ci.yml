@@ -29,7 +29,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          OUTPUT=$(pnpm typecheck -- --pretty false 2>&1)
+          OUTPUT=$(pnpm exec tsc -p tsconfig.json --noEmit --pretty false 2>&1)
           STATUS=$?
           {
             echo '### Temporary typecheck diagnostics'
