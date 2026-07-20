@@ -70,7 +70,7 @@ function pushBaseline(
 
 function pushEvent(spec: RichEventTuple): void {
   const [
-    eventType,
+    activityType,
     timelineSeconds,
     minute,
     clockLabel,
@@ -92,7 +92,8 @@ function pushEvent(spec: RichEventTuple): void {
     provenance: "TXLINE",
     sourceOrder: sourceOrder(recordId, sourceTimestamp, sequence),
     kind: "event",
-    eventType,
+    eventType: activityType === "GOAL" ? "GOAL" : "KICKOFF",
+    activityType,
     minute,
     clockLabel,
     label,
