@@ -23,7 +23,8 @@
     "txline:live-snapshot-observe": "tsx src/txline/live-snapshot-observer-cli.ts",
     "txline:live-odds-transport-observe": "tsx src/txline/live-odds-transport-observer-cli.ts",
     "txline:live-record": "tsx src/txline/live-match-recorder-cli.ts",
-    "txline:export-curated-replay": "tsx src/txline/curated-replay-export-cli.ts"
+    "txline:export-curated-replay": "tsx src/txline/curated-replay-export-cli.ts",
+    "txline:capture-private-full": "tsx src/txline/private-full-provider-capture-cli.ts"
   },
   "dependencies": {
     "fastify": "^5.0.0",
