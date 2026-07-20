@@ -26,7 +26,18 @@ function goalsOf(
   participant: "Participant1" | "Participant2"
 ): number {
   const score = scoreOf(value);
-  return ((score[participant] as { Total: { Goals: number } }).Total.Goals);
+  return (score[participant] as { Total: { Goals: number } }).Total.Goals;
+}
+
+function expectTxlineError(fn: () => unknown, code: string): void {
+  try {
+    fn();
+  } catch (error) {
+    expect(error).toBeInstanceOf(TxlineHttpError);
+    expect((error as TxlineHttpError).code).toBe(code);
+    return;
+  }
+  throw new Error(`Expected TxlineHttpError with code ${code}.`);
 }
 
 describe("hydrateSparseScoreHistory", () => {
@@ -87,55 +98,51 @@ describe("hydrateSparseScoreHistory", () => {
   });
 
   it("fails closed without a trusted kickoff anchor", () => {
-    expect(() =>
-      hydrateSparseScoreHistory(
-        [
-          {
-            FixtureId: fixture.fixtureId,
-            Seq: 2,
-            Ts: START + 60_000,
-            Action: "GOAL",
-            Score: {
-              Participant1: { Total: { Goals: 1 } }
+    expectTxlineError(
+      () =>
+        hydrateSparseScoreHistory(
+          [
+            {
+              FixtureId: fixture.fixtureId,
+              Seq: 2,
+              Ts: START + 60_000,
+              Action: "GOAL",
+              Score: {
+                Participant1: { Total: { Goals: 1 } }
+              }
             }
-          }
-        ],
-        fixture
-      )
-    ).toThrowError(
-      expect.objectContaining<TxlineHttpError>({
-        code: "SCORE_SPARSE_HYDRATION_NO_KICKOFF"
-      })
+          ],
+          fixture
+        ),
+      "SCORE_SPARSE_HYDRATION_NO_KICKOFF"
     );
   });
 
   it("fails closed on a score gap larger than one goal", () => {
-    expect(() =>
-      hydrateSparseScoreHistory(
-        [
-          {
-            FixtureId: fixture.fixtureId,
-            Seq: 1,
-            Ts: START,
-            Action: "KICKOFF",
-            Score: {}
-          },
-          {
-            FixtureId: fixture.fixtureId,
-            Seq: 2,
-            Ts: START + 60_000,
-            Action: "GOAL",
-            Score: {
-              Participant1: { Total: { Goals: 2 } }
+    expectTxlineError(
+      () =>
+        hydrateSparseScoreHistory(
+          [
+            {
+              FixtureId: fixture.fixtureId,
+              Seq: 1,
+              Ts: START,
+              Action: "KICKOFF",
+              Score: {}
+            },
+            {
+              FixtureId: fixture.fixtureId,
+              Seq: 2,
+              Ts: START + 60_000,
+              Action: "GOAL",
+              Score: {
+                Participant1: { Total: { Goals: 2 } }
+              }
             }
-          }
-        ],
-        fixture
-      )
-    ).toThrowError(
-      expect.objectContaining<TxlineHttpError>({
-        code: "SCORE_SPARSE_HYDRATION_GAP"
-      })
+          ],
+          fixture
+        ),
+      "SCORE_SPARSE_HYDRATION_GAP"
     );
   });
 });
