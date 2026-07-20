@@ -35,9 +35,37 @@ function state(cursor = T0): VisibleMatchState {
         sequence: 1,
         sourceTimestamp: T0,
         eventType: "KICKOFF",
-        minute: 0
+        minute: 0,
+        importance: "KEY",
+        category: "PERIOD"
       }
     ],
+    statistics: {
+      home: {
+        shots: 0,
+        shotsOnTarget: 0,
+        corners: 0,
+        yellowCards: 0,
+        redCards: 0,
+        substitutions: 0,
+        freeKicks: 0,
+        throwIns: 0,
+        goalKicks: 0,
+        injuries: 0
+      },
+      away: {
+        shots: 0,
+        shotsOnTarget: 0,
+        corners: 0,
+        yellowCards: 0,
+        redCards: 0,
+        substitutions: 0,
+        freeKicks: 0,
+        throwIns: 0,
+        goalKicks: 0,
+        injuries: 0
+      }
+    },
     impliedProbabilities: {
       homeWin: 0.44,
       draw: 0.31,

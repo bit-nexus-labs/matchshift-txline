@@ -6,6 +6,45 @@ export type TeamSide = "HOME" | "AWAY";
 export type Provenance = "SYNTHETIC" | "TXLINE";
 export type SourceOrderDomain = "TXLINE_SCORES" | "TXLINE_ODDS";
 
+export const MATCH_EVENT_TYPES = [
+  "KICKOFF",
+  "SECOND_HALF_START",
+  "HALF_TIME",
+  "REGULATION_END",
+  "EXTRA_TIME_START",
+  "EXTRA_TIME_HALF_TIME",
+  "EXTRA_TIME_SECOND_HALF_START",
+  "MATCH_FINAL",
+  "RESTART",
+  "GOAL",
+  "VAR_REVIEW",
+  "VAR_DECISION",
+  "YELLOW_CARD",
+  "RED_CARD",
+  "CORNER",
+  "SHOT",
+  "FREE_KICK",
+  "THROW_IN",
+  "GOAL_KICK",
+  "SUBSTITUTION",
+  "INJURY",
+  "ADDITIONAL_TIME",
+  "MOMENTUM"
+] as const;
+
+export type MatchEventType = (typeof MATCH_EVENT_TYPES)[number];
+export type EventImportance = "KEY" | "STANDARD" | "FLOW";
+export type EventCategory =
+  | "PERIOD"
+  | "SCORE"
+  | "VAR"
+  | "DISCIPLINE"
+  | "ATTACK"
+  | "RESTART"
+  | "PERSONNEL"
+  | "FLOW"
+  | "MATCH";
+
 export interface Score {
   home: number;
   away: number;
@@ -39,9 +78,18 @@ interface BaseMatchRecord {
 
 export interface MatchEventRecord extends BaseMatchRecord {
   kind: "event";
+  /** Backward-compatible score event used by the exporter and score reducer. */
   eventType: "KICKOFF" | "GOAL";
+  /** Rich activity type for curated match chronology. */
+  activityType?: MatchEventType;
   team?: TeamSide;
   minute: number;
+  clockLabel?: string;
+  label?: string;
+  detail?: string;
+  importance?: EventImportance;
+  category?: EventCategory;
+  outcome?: string;
 }
 
 export interface OddsRecord extends BaseMatchRecord {
@@ -96,9 +144,33 @@ export interface VisibleEvent {
   eventId: string;
   sequence: number;
   sourceTimestamp: number;
-  eventType: MatchEventRecord["eventType"];
+  eventType: MatchEventType;
   minute: number;
   team?: TeamSide;
+  clockLabel?: string;
+  label?: string;
+  detail?: string;
+  importance: EventImportance;
+  category: EventCategory;
+  outcome?: string;
+}
+
+export interface TeamVisibleStatistics {
+  shots: number;
+  shotsOnTarget: number;
+  corners: number;
+  yellowCards: number;
+  redCards: number;
+  substitutions: number;
+  freeKicks: number;
+  throwIns: number;
+  goalKicks: number;
+  injuries: number;
+}
+
+export interface VisibleMatchStatistics {
+  home: TeamVisibleStatistics;
+  away: TeamVisibleStatistics;
 }
 
 export interface SafetyStatus {
@@ -123,6 +195,7 @@ export interface VisibleMatchState {
   };
   score: Score;
   events: VisibleEvent[];
+  statistics: VisibleMatchStatistics;
   impliedProbabilities?: ImpliedProbabilities;
   latestExplanation?: string;
   safety: SafetyStatus;
