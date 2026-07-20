@@ -25,7 +25,7 @@ function action(
   seq: number,
   name: string,
   overrides: Record<string, unknown> = {}
-) {
+): Record<string, unknown> {
   return {
     FixtureId: FIXTURE_ID,
     Seq: seq,
@@ -35,7 +35,7 @@ function action(
   };
 }
 
-function completedLifecycle() {
+function completedLifecycle(): Array<Record<string, unknown>> {
   return [
     action(10, "kickoff", {
       Id: 100,
@@ -194,7 +194,7 @@ describe("confirmed completed TxLINE score lifecycle recovery", () => {
 
   it("fails closed when surviving confirmed goals disagree with game_finalised", () => {
     const records = completedLifecycle();
-    const final = records.at(-1) as Record<string, any>;
+    const final = records.at(-1)!;
     final.Score = {
       Participant1: { Total: { Goals: 2 } },
       Participant2: { Total: {} }
@@ -219,7 +219,12 @@ describe("confirmed completed TxLINE score lifecycle recovery", () => {
 
   it("fails closed for a non-discarded goal lifecycle that never becomes confirmed", () => {
     const records = completedLifecycle().filter(
-      (record) => !(record.Action === "goal" && record.Id === 300 && record.Confirmed === true)
+      (record) =>
+        !(
+          record.Action === "goal" &&
+          record.Id === 300 &&
+          record.Confirmed === true
+        )
     );
 
     const error = (() => {
