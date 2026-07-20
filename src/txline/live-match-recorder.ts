@@ -20,7 +20,7 @@ export interface SanitizedLiveCaptureRecord {
   domain: "scores" | "odds";
   kind: MatchRecord["kind"];
   sourceTimestamp: number;
-  eventType?: Extract<MatchRecord, { kind: "event" }>["eventType"];
+  eventType?: "KICKOFF" | "GOAL";
   team?: "HOME" | "AWAY";
   minute?: number;
   score?: { home: number; away: number };
