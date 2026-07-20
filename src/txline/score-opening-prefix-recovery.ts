@@ -1,4 +1,8 @@
 import type { MatchEventRecord } from "../core/types.js";
+import {
+  hasConfirmedCompletedScoreLifecycle,
+  recoverConfirmedCompletedScoreLifecycle
+} from "./confirmed-score-lifecycle-recovery.js";
 import { TxlineHttpError } from "./http-client.js";
 import {
   normalizeScorePayload,
@@ -201,6 +205,10 @@ export function recoverOpeningScorePrefixFromGoalActions(
   records: readonly unknown[],
   fixture: NormalizedFixture
 ): unknown[] {
+  if (hasConfirmedCompletedScoreLifecycle(records, fixture)) {
+    return recoverConfirmedCompletedScoreLifecycle(records, fixture);
+  }
+
   const ordered = [...records].sort(directOrder);
   const opening = trustedOpeningSnapshot(ordered, fixture);
   if (opening === undefined) {
