@@ -17,6 +17,7 @@ import {
 } from "./score-record-shape-diagnostics.js";
 import { TxlineScoreHistoryWindowSource } from "./score-history-window-source.js";
 import { TxlineScoreSnapshotSource } from "./score-snapshot-source.js";
+import { hydrateSparseScoreHistory } from "./sparse-score-history-hydration.js";
 
 const MINUTE_MS = 60_000;
 const DEFAULT_WINDOW_MINUTES = 180;
@@ -200,11 +201,31 @@ async function main(
       ...bucketRecords,
       ...snapshotRecords
     ]);
-    const states = trustedScoreStates(
+    let states = trustedScoreStates(
       mergedScoreRecords,
       fixture,
       probeEndTimestamp
     );
+    let hydrationStatus = "NOT_NEEDED";
+    if (states.length === 0) {
+      try {
+        const hydration = hydrateSparseScoreHistory(mergedScoreRecords, fixture);
+        states = trustedScoreStates(
+          hydration.records,
+          fixture,
+          probeEndTimestamp
+        );
+        hydrationStatus =
+          `PASS; kickoff=${hydration.kickoffObserved ? "YES" : "NO"}; ` +
+          `hydrated-records=${hydration.hydratedRecords}; ` +
+          `score-changes=${hydration.scoreChanges}`;
+      } catch (error) {
+        hydrationStatus =
+          error instanceof TxlineHttpError
+            ? `FAIL; code=${error.code}`
+            : "FAIL; code=UNKNOWN";
+      }
+    }
     const diagnostics = diagnoseScoreRecordShape(
       mergedScoreRecords,
       fixture,
@@ -233,6 +254,7 @@ async function main(
       `Scores snapshot: records=${snapshotRecords.length}\n`
     );
     process.stdout.write(`Odds snapshot: records=${oddsRecords.length}\n`);
+    process.stdout.write(`Sparse score hydration: ${hydrationStatus}\n`);
     process.stdout.write(
       `Trusted score states: ${states.length === 0 ? "NONE" : states.join(" -> ")}\n`
     );
