@@ -41,7 +41,7 @@ type CuratedScoreEntry =
   | {
       kind: "event";
       sourceTimestamp: number;
-      eventType: "KICKOFF" | "GOAL";
+      eventType: Extract<MatchRecord, { kind: "event" }>["eventType"];
       minute: number;
       team?: TeamSide;
     }
