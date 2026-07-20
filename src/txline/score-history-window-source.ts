@@ -7,10 +7,8 @@ import {
   TxlineConfigurationError,
   TxlineHttpError
 } from "./http-client.js";
-import {
-  extractTxlineReplayRecords,
-  parseTxlineReplayResponse
-} from "./replay-http-source.js";
+import { parseTxlineReplayResponse } from "./replay-http-source.js";
+import { extractTxlineScoreActionRecords } from "./score-action-records.js";
 
 export interface TxlineScoreHistoryWindowSourceOptions {
   apiOrigin: string;
@@ -67,7 +65,7 @@ export class TxlineScoreHistoryWindowSource {
       `/api/scores/updates/${epochDay}/${hourOfDay}/${interval}?${query.toString()}`,
       externalSignal
     );
-    return extractTxlineReplayRecords(payload, "scores");
+    return extractTxlineScoreActionRecords(payload);
   }
 
   async #requestReplay(
