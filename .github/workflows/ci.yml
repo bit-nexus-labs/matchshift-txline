@@ -4,41 +4,7 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-
 jobs:
-  diagnose-tests:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          show-progress: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.7.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: pnpm install --frozen-lockfile --reporter=silent
-      - name: Post concise test diagnostics
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          OUTPUT=$(pnpm exec vitest run --reporter=basic 2>&1)
-          STATUS=$?
-          {
-            echo '### Temporary test diagnostics'
-            echo '```text'
-            printf '%s\n' "$OUTPUT" | tail -n 240
-            echo '```'
-          } | gh pr comment "${{ github.event.pull_request.number }}" --body-file -
-          exit $STATUS
-
   verify:
     runs-on: ubuntu-latest
     steps:
