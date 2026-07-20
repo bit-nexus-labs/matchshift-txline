@@ -94,6 +94,11 @@ export async function curatedReplayExportCli(
       30_000,
       "TXLINE_REQUEST_TIMEOUT_MS"
     );
+    const durationMinutes = readPositiveInteger(
+      env.TXLINE_CURATED_DURATION_MINUTES,
+      120,
+      "TXLINE_CURATED_DURATION_MINUTES"
+    );
     const sourceOptions = {
       apiOrigin: resolveTxlineOrigin(network),
       apiToken,
@@ -107,11 +112,7 @@ export async function curatedReplayExportCli(
       selector: selectorFromEnvironment(env),
       publicFixtureId,
       publicLabel,
-      durationMinutes: readPositiveInteger(
-        env.TXLINE_CURATED_DURATION_MINUTES,
-        120,
-        "TXLINE_CURATED_DURATION_MINUTES"
-      ),
+      durationMinutes,
       oddsSampleMinutes: readPositiveInteger(
         env.TXLINE_CURATED_ODDS_SAMPLE_MINUTES,
         10,
@@ -133,7 +134,10 @@ export async function curatedReplayExportCli(
     const result = allowPartialOpening
       ? await exportCuratedCompletedMatchWithDisclosure({
           ...exportOptions,
-          client: createCuratedPartialReplaySource(sourceOptions)
+          client: createCuratedPartialReplaySource({
+            ...sourceOptions,
+            fallbackHistoryDurationMinutes: durationMinutes
+          })
         })
       : await exportCuratedCompletedMatch({
           ...exportOptions,
