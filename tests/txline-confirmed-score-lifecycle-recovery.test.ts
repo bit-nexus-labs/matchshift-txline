@@ -84,7 +84,7 @@ function completedLifecycle(): Array<Record<string, unknown>> {
       Confirmed: true,
       Participant: 1,
       Clock: { Running: true, Seconds: 6_339 },
-      Data: { GoalType: "Shot", PlayerId: 999 },
+      Data: { GoalType: "Shot" },
       Score: {
         Participant1: { Total: { Goals: 1 } }
       }
