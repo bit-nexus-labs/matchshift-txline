@@ -12,6 +12,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     button,input,select { font:inherit; }
     button { cursor:pointer; }
     button:disabled { cursor:wait; opacity:.55; }
+    a { color:inherit; }
     .shell { width:min(1240px,calc(100% - 28px)); margin:auto; padding:0 0 48px; }
     .topbar { min-height:68px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
     .brand { font-size:20px; font-weight:850; }
@@ -67,10 +68,24 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     .event-copy { font-size:12px; }
     .event-detail,.event-tag,.empty { color:var(--muted); font-size:10px; }
     .explanation { min-height:54px; padding:11px; border:1px solid #245146; border-radius:11px; color:#d8eee8; font-size:12px; }
+    .proof-boundary { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; margin-top:22px; padding:16px 18px; border:1px solid rgba(246,191,82,.24); border-radius:15px; background:rgba(246,191,82,.055); color:#eadfca; font-size:13px; line-height:1.55; }
+    .proof-boundary strong { color:var(--text); }
+    .proof-symbol { color:var(--gold); font-weight:900; }
+    .architecture { margin-top:22px; display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+    .node { position:relative; min-height:90px; padding:15px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.025); }
+    .node span { display:block; color:var(--accent); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+    .node strong { display:block; margin-top:8px; font-size:13px; line-height:1.4; }
+    .node:not(:last-child)::after { content:"→"; position:absolute; right:-17px; top:34px; z-index:2; color:#617080; }
+    .product-update { margin-top:22px; display:grid; grid-template-columns:1fr auto; gap:22px; align-items:center; padding:22px; border:1px solid #315d55; border-radius:18px; background:linear-gradient(135deg,rgba(92,225,194,.09),rgba(16,27,38,.94)); }
+    .product-update h2 { margin:7px 0 8px; font-size:22px; }
+    .product-update p { margin:0; max-width:820px; color:#c3ced8; font-size:13px; line-height:1.55; }
+    .update-kicker { color:var(--accent); font-size:10px; font-weight:850; text-transform:uppercase; letter-spacing:.09em; }
+    .update-link { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:0 15px; border:1px solid #3f756a; border-radius:11px; background:#142d2a; color:var(--text); font-size:13px; font-weight:800; text-decoration:none; white-space:nowrap; }
+    footer { display:flex; justify-content:space-between; gap:20px; padding-top:28px; color:var(--muted); font-size:12px; }
     .error { display:none; margin:0 0 12px; padding:11px; border:1px solid #713541; border-radius:10px; color:#ffd8dd; }
     .error.visible { display:block; }
-    @media(max-width:900px){ .hero,.compare{grid-template-columns:1fr}.viewer+.viewer{border-left:0;border-top:1px solid var(--line)} }
-    @media(max-width:560px){ .shell{width:calc(100% - 16px)}.stats-grid{grid-template-columns:repeat(3,1fr)}.event{grid-template-columns:45px 1fr}.event-tag{display:none}.dock-top{align-items:flex-start;flex-direction:column}.dock-controls button{flex:1 1 auto} }
+    @media(max-width:900px){ .hero,.compare{grid-template-columns:1fr}.viewer+.viewer{border-left:0;border-top:1px solid var(--line)}.architecture{grid-template-columns:1fr 1fr}.node::after{display:none}.product-update{grid-template-columns:1fr} }
+    @media(max-width:560px){ .shell{width:calc(100% - 16px)}.stats-grid{grid-template-columns:repeat(3,1fr)}.event{grid-template-columns:45px 1fr}.event-tag{display:none}.dock-top{align-items:flex-start;flex-direction:column}.dock-controls button{flex:1 1 auto}.architecture{grid-template-columns:1fr}.update-link{width:100%}footer{flex-direction:column} }
   </style>
 </head>
 <body>
@@ -109,6 +124,33 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
         </article>
       </div>
     </section>
+
+    <section class="proof-boundary" aria-label="Server-side visibility boundary">
+      <div class="proof-symbol">◆</div>
+      <div><strong>No client-side hiding.</strong> Every state shown above is rebuilt on the server from records at or before that session’s effective cursor. Future records are omitted from the API response itself.</div>
+    </section>
+
+    <section class="architecture" aria-label="How MatchShift works">
+      <div class="node"><span>01 · ingest</span><strong>TxLINE or deterministic replay</strong></div>
+      <div class="node"><span>02 · normalize</span><strong>Sanitized score, event and odds records</strong></div>
+      <div class="node"><span>03 · buffer</span><strong>Append-only source timeline</strong></div>
+      <div class="node"><span>04 · gate</span><strong>Per-session visibility cursor</strong></div>
+      <div class="node"><span>05 · explain</span><strong>Visible state only</strong></div>
+    </section>
+
+    <section class="product-update" aria-label="Post-submission product update">
+      <div>
+        <div class="update-kicker">Product update · July 21, 2026</div>
+        <h2>Spain–Argentina rich replay walkthrough</h2>
+        <p>The core spoiler-safe TxLINE integration was submitted before the deadline. This transparent follow-up documents the richer completed-match timeline, sticky replay controls, compact event views and historical odds labeling added after submission.</p>
+      </div>
+      <a class="update-link" href="https://github.com/bit-nexus-labs/matchshift-txline/blob/main/docs/PRODUCT_UPDATE_2026-07-21.md" target="_blank" rel="noreferrer">Open product update →</a>
+    </section>
+
+    <footer>
+      <span>MatchShift · Consumer &amp; Fan Experience track</span>
+      <span>Live data without future knowledge.</span>
+    </footer>
   </main>
   <script>
     (function () {
