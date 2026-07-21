@@ -25,14 +25,22 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     .primary { width:100%; border:0; color:#062019; background:linear-gradient(135deg,var(--accent),#b9ffed); }
     .secondary,.quiet { color:var(--text); border:1px solid var(--line); background:#172431; }
     .quiet { background:transparent; color:var(--muted); }
-    .demo { overflow:hidden; }
-    .demo-head,.toolbar,.controls { padding:16px 20px; }
-    .demo-head { display:flex; justify-content:space-between; gap:16px; border-bottom:1px solid var(--line); }
+    .demo { position:relative; }
+    .demo-head,.toolbar { padding:16px 20px; }
+    .demo-head { display:flex; justify-content:space-between; gap:16px; border-bottom:1px solid var(--line); border-radius:20px 20px 0 0; }
     .match-title { font-size:18px; font-weight:850; }
     .match-meta { margin-top:4px; color:var(--muted); font-size:12px; }
     .shield { color:var(--accent); font-size:12px; font-weight:800; }
     .toolbar { display:flex; justify-content:space-between; gap:12px; align-items:center; border-bottom:1px solid var(--line); }
     select { padding:8px 10px; color:var(--text); border:1px solid var(--line); border-radius:9px; background:#14212d; }
+    .replay-dock { position:sticky; top:8px; z-index:20; margin:10px; padding:13px 14px; border:1px solid #315d55; border-radius:14px; background:rgba(10,24,31,.97); box-shadow:0 14px 38px rgba(0,0,0,.34); }
+    .dock-top { display:flex; justify-content:space-between; gap:14px; align-items:center; }
+    .dock-score { font-size:18px; font-weight:850; }
+    .dock-context,.dock-latest { color:var(--muted); font-size:11px; }
+    .dock-time { color:var(--accent); font-size:13px; font-weight:800; white-space:nowrap; }
+    .dock-controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .dock-latest { margin-top:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    input[type=range] { width:100%; margin-top:9px; accent-color:var(--accent); }
     .compare { display:grid; grid-template-columns:1fr 1fr; }
     .viewer { min-width:0; padding:20px; }
     .viewer + .viewer { border-left:1px solid var(--line); }
@@ -45,6 +53,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     .score { font-size:34px; font-weight:860; }
     .minute { color:var(--muted); text-align:center; font-size:11px; }
     .section-label { margin:16px 0 8px; color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+    .odds-note { min-height:16px; margin-top:6px; color:var(--muted); font-size:10px; line-height:1.4; }
     .odds-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
     .odd,.stat { padding:9px; text-align:center; border:1px solid var(--line); border-radius:10px; }
     .odd span,.stat span { display:block; color:var(--muted); font-size:9px; }
@@ -58,13 +67,10 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     .event-copy { font-size:12px; }
     .event-detail,.event-tag,.empty { color:var(--muted); font-size:10px; }
     .explanation { min-height:54px; padding:11px; border:1px solid #245146; border-radius:11px; color:#d8eee8; font-size:12px; }
-    .controls { border-top:1px solid var(--line); }
-    .control-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-    input[type=range] { width:100%; accent-color:var(--accent); }
     .error { display:none; margin:0 0 12px; padding:11px; border:1px solid #713541; border-radius:10px; color:#ffd8dd; }
     .error.visible { display:block; }
     @media(max-width:900px){ .hero,.compare{grid-template-columns:1fr}.viewer+.viewer{border-left:0;border-top:1px solid var(--line)} }
-    @media(max-width:560px){ .shell{width:calc(100% - 16px)}.stats-grid{grid-template-columns:repeat(3,1fr)}.event{grid-template-columns:45px 1fr}.event-tag{display:none} }
+    @media(max-width:560px){ .shell{width:calc(100% - 16px)}.stats-grid{grid-template-columns:repeat(3,1fr)}.event{grid-template-columns:45px 1fr}.event-tag{display:none}.dock-top{align-items:flex-start;flex-direction:column}.dock-controls button{flex:1 1 auto} }
   </style>
 </head>
 <body>
@@ -72,31 +78,36 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     <header class="topbar"><div class="brand">MatchShift</div><div class="status" id="source-status">Synthetic replay ready</div></header>
     <section class="hero">
       <div><h1>Watch on your time.<br />Not the internet’s.</h1><p>One match, two independent viewers. Each receives only the score, events, statistics and probability context visible at that viewer’s own cursor.</p></div>
-      <aside class="card"><strong>60-second judge demo</strong><p>Start two isolated server-side sessions: one at the live edge and one six minutes behind. Move the personal cursor to reveal information in order.</p><button class="primary" id="start-demo">Start spoiler-safe demo</button></aside>
+      <aside class="card"><strong>Choose a replay</strong><p>Start two isolated server-side sessions: one at the live edge and one at an earlier personal cursor. Then move the personal cursor to reveal information in order.</p><button class="primary" id="start-demo">Start synthetic judge demo</button><button class="secondary" id="start-curated" style="display:none;width:100%;margin-top:10px">Start curated real-match replay</button></aside>
     </section>
     <div class="error" id="error-banner" role="alert"></div>
     <section class="demo" id="demo-frame">
-      <header class="demo-head"><div><div class="match-title" id="match-title">Northbridge vs Southport</div><div class="match-meta" id="match-meta">Synthetic replay · two independent server sessions</div></div><div class="shield">◆ Spoiler shield active</div></header>
-      <div class="toolbar"><label>Timeline view <select id="timeline-filter"><option value="KEY">Key events</option><option value="HIGHLIGHTS" selected>Highlights</option><option value="FULL">Full timeline</option></select></label><span id="event-count">0 visible events</span></div>
+      <header class="demo-head"><div><div class="match-title" id="match-title">Choose a replay above</div><div class="match-meta" id="match-meta">The replay controls appear after a scenario starts.</div></div><div class="shield">◆ Spoiler shield active</div></header>
+      <div class="toolbar"><label>Timeline view <select id="timeline-filter"><option id="filter-key" value="KEY" selected>Key events</option><option id="filter-highlights" value="HIGHLIGHTS">Highlights</option><option id="filter-full" value="FULL">Full timeline</option></select></label><span id="event-count">0 visible events</span></div>
+      <section class="replay-dock" id="replay-dock" style="display:none" aria-live="polite">
+        <div class="dock-top"><div><div class="dock-context" id="dock-context">Replay cursor</div><div class="dock-score" id="dock-score">– : –</div></div><div class="dock-time" id="cursor-readout">00:00</div></div>
+        <input id="cursor" type="range" min="0" max="52" step="0.1666667" value="0" disabled aria-label="Personal viewing minute" />
+        <div class="dock-controls"><button class="secondary" id="rewind-one" disabled>−1 minute</button><button class="secondary" id="advance-one" disabled>+1 minute</button><button class="secondary" id="pause" disabled>Pause</button><button class="secondary" id="resume" disabled>Resume</button><button class="secondary" id="catch-up" disabled>Catch up</button><button class="quiet" id="reset" disabled>Restart replay</button></div>
+        <div class="dock-latest" id="dock-latest">Latest visible event: none</div>
+      </section>
       <div class="compare">
         <article class="viewer">
           <div class="viewer-head"><h2>Live edge</h2><span class="badge" id="live-badge">LIVE</span></div>
           <div class="score-card"><div class="team">Northbridge</div><div><div class="score" id="live-score">– : –</div><div class="minute" id="live-minute">Waiting</div></div><div class="team">Southport</div></div>
-          <div class="section-label">Visible probabilities</div><div class="odds-grid" id="live-odds"></div>
+          <div class="section-label" id="live-odds-label">Visible probabilities</div><div class="odds-grid" id="live-odds"></div><div class="odds-note" id="live-odds-note"></div>
           <div class="section-label">Visible match stats</div><div class="stats-grid" id="live-stats"></div>
-          <div class="section-label">Visible timeline · <span id="live-event-count">0</span></div><div class="timeline" id="live-events"><div class="empty">Start the demo.</div></div>
+          <div class="section-label">Visible timeline · <span id="live-event-count">0</span></div><div class="timeline" id="live-events"><div class="empty">Start a replay.</div></div>
           <div class="section-label">Timeline-aware explanation</div><div class="explanation" id="live-explanation">Only visible information reaches the explanation layer.</div>
         </article>
         <article class="viewer">
           <div class="viewer-head"><h2>Personal timeline</h2><span class="badge" id="personal-badge">DELAYED</span></div>
           <div class="score-card"><div class="team">Northbridge</div><div><div class="score" id="personal-score">– : –</div><div class="minute" id="personal-minute">Waiting</div></div><div class="team">Southport</div></div>
-          <div class="section-label">Visible probabilities</div><div class="odds-grid" id="personal-odds"></div>
+          <div class="section-label" id="personal-odds-label">Visible probabilities</div><div class="odds-grid" id="personal-odds"></div><div class="odds-note" id="personal-odds-note"></div>
           <div class="section-label">Visible match stats</div><div class="stats-grid" id="personal-stats"></div>
           <div class="section-label">Visible timeline · <span id="personal-event-count">0</span></div><div class="timeline" id="personal-events"><div class="empty">Future events remain absent.</div></div>
           <div class="section-label">Timeline-aware explanation</div><div class="explanation" id="personal-explanation">The delayed viewer cannot retrieve future state.</div>
         </article>
       </div>
-      <div class="controls"><div id="cursor-readout">43:00</div><input id="cursor" type="range" min="0" max="52" step="0.1666667" value="43" disabled aria-label="Personal viewing minute" /><div class="control-row"><button class="secondary" id="advance-one" disabled>+1 minute</button><button class="secondary" id="pause" disabled>Pause</button><button class="secondary" id="resume" disabled>Resume</button><button class="secondary" id="catch-up" disabled>Catch up to live</button><button class="quiet" id="reset">Reset demo</button></div></div>
     </section>
   </main>
   <script>
@@ -106,17 +117,17 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
         fixture: null,
         live: null,
         personal: null,
-        busy: false
+        busy: false,
+        demoEndpoint: "/api/demo/start",
+        timelineFilter: "KEY"
       };
-      model.timelineFilter = "HIGHLIGHTS";
       var ids = [
-        "start-demo", "cursor", "advance-one", "pause", "resume", "catch-up",
-        "reset", "error-banner", "source-status", "match-title", "match-meta",
-        "live-badge", "live-score", "live-minute", "live-odds", "live-events",
-        "live-explanation", "personal-badge", "personal-score", "personal-minute",
-        "personal-odds", "personal-events", "personal-explanation", "cursor-readout",
-        "timeline-filter", "event-count", "live-event-count", "personal-event-count",
-        "live-stats", "personal-stats"
+        "start-demo", "start-curated", "cursor", "rewind-one", "advance-one", "pause", "resume", "catch-up",
+        "reset", "error-banner", "source-status", "match-title", "match-meta", "replay-dock", "dock-context", "dock-score", "dock-latest",
+        "live-badge", "live-score", "live-minute", "live-odds", "live-odds-label", "live-odds-note", "live-events",
+        "live-explanation", "personal-badge", "personal-score", "personal-minute", "personal-odds", "personal-odds-label", "personal-odds-note",
+        "personal-events", "personal-explanation", "cursor-readout", "timeline-filter", "event-count", "live-event-count", "personal-event-count",
+        "live-stats", "personal-stats", "filter-key", "filter-highlights", "filter-full"
       ];
       var el = {};
       ids.forEach(function (id) { el[id] = document.getElementById(id); });
@@ -127,74 +138,100 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
       function clearError() { el["error-banner"].textContent=""; el["error-banner"].classList.remove("visible"); }
       function setBusy(value) {
         model.busy = value;
-        [el["start-demo"], el.cursor, el["advance-one"], el.pause, el.resume, el["catch-up"]]
-          .forEach(function (button) { if (button) button.disabled = value || model.personal === null; });
+        [el.cursor, el["rewind-one"], el["advance-one"], el.pause, el.resume, el["catch-up"], el.reset]
+          .forEach(function (control) { if (control) control.disabled = value || model.personal === null; });
         el["start-demo"].disabled = value;
+        el["start-curated"].disabled = value;
       }
-      function probabilityCard(label,value){return '<div class="odd"><span>'+escapeHtml(label)+'</span><strong>'+(Number.isFinite(value)?Math.round(value*100)+"%":"—")+'</strong></div>';}
-      function renderOdds(target,p){target.innerHTML=p?probabilityCard("Home",p.homeWin)+probabilityCard("Draw",p.draw)+probabilityCard("Away",p.awayWin):probabilityCard("Home",NaN)+probabilityCard("Draw",NaN)+probabilityCard("Away",NaN);}
+      function probabilityCard(label,value){return '<div class="odd"><span>'+escapeHtml(label)+'</span><strong>'+(Number.isFinite(value)?(value*100).toFixed(1)+"%":"—")+'</strong></div>';}
+      function renderOdds(prefix,state){
+        var target=el[prefix+"-odds"],label=el[prefix+"-odds-label"],note=el[prefix+"-odds-note"],p=state.impliedProbabilities;
+        target.innerHTML=p?probabilityCard("Home",p.homeWin)+probabilityCard("Draw",p.draw)+probabilityCard("Away",p.awayWin):probabilityCard("Home",NaN)+probabilityCard("Draw",NaN)+probabilityCard("Away",NaN);
+        var finalVisible=model.fixture&&model.fixture.demoKind==="CURATED"&&state.events.some(function(event){return event.eventType==="MATCH_FINAL";});
+        label.textContent=finalVisible?"Last available market snapshot":"Visible probabilities";
+        if(!p||!state.impliedProbabilitiesTimestamp||!model.fixture){note.textContent="No market snapshot is visible at this cursor.";return;}
+        var snapshotMinute=minuteLabel((state.impliedProbabilitiesTimestamp-model.fixture.kickoffTimestamp)/60000);
+        if(finalVisible){
+          var result=state.score.home===state.score.away?"Draw confirmed":(state.score.home>state.score.away?model.fixture.homeLabel:model.fixture.awayLabel)+" won "+state.score.home+"–"+state.score.away;
+          note.textContent="Snapshot at "+snapshotMinute+" · "+result+". Historical market snapshot, not a final prediction.";
+        }else{
+          note.textContent="Snapshot at "+snapshotMinute+" · latest market state visible at this cursor.";
+        }
+      }
       function statCard(label,home,away){return '<div class="stat"><span>'+escapeHtml(label)+'</span><strong>'+escapeHtml(home)+"–"+escapeHtml(away)+'</strong></div>';}
       function renderStats(target,stats){if(!stats){target.innerHTML=statCard("Shots",0,0)+statCard("On target",0,0)+statCard("Corners",0,0)+statCard("Cards",0,0)+statCard("Subs",0,0);return;}target.innerHTML=statCard("Shots",stats.home.shots,stats.away.shots)+statCard("On target",stats.home.shotsOnTarget,stats.away.shotsOnTarget)+statCard("Corners",stats.home.corners,stats.away.corners)+statCard("YC / RC",stats.home.yellowCards+"/"+stats.home.redCards,stats.away.yellowCards+"/"+stats.away.redCards)+statCard("Subs",stats.home.substitutions,stats.away.substitutions);}
-      function filteredEvents(events){return(events||[]).filter(function(event){if(model.timelineFilter==="KEY")return event.importance==="KEY";if(model.timelineFilter==="HIGHLIGHTS")return event.importance!=="FLOW";return true;});}
-      function renderEvents(target, events) {
-        var visible = filteredEvents(events);
-        if (!visible.length) { target.innerHTML = '<div class="empty">No match event is visible at this cursor.</div>'; return; }
-        target.innerHTML = visible.slice(-80).map(function (event) {
-          var copy = event.eventType === "GOAL"
-            ? (event.team === "HOME" ? "Northbridge goal" : "Southport goal")
-            : "Kickoff";
-          copy = event.label || copy;
-          var detail = event.detail ? '<div class="event-detail">'+escapeHtml(event.detail)+'</div>' : "";
+      function isHighlight(event){return event.importance==="KEY"||(event.eventType==="SHOT"&&event.outcome==="OnTarget")||event.eventType==="SUBSTITUTION"||event.eventType==="INJURY";}
+      function filteredEvents(events){return (events||[]).filter(function(event){if(model.timelineFilter==="KEY")return event.importance==="KEY";if(model.timelineFilter==="HIGHLIGHTS")return isHighlight(event);return true;});}
+      function updateFilterLabels(events){var all=events||[],key=all.filter(function(event){return event.importance==="KEY";}).length,highlights=all.filter(isHighlight).length;el["filter-key"].textContent="Key events · "+key;el["filter-highlights"].textContent="Highlights · "+highlights;el["filter-full"].textContent="Full timeline · "+all.length;}
+      function renderEvents(target,events){
+        var visible=filteredEvents(events);
+        if(!visible.length){target.innerHTML='<div class="empty">No match event is visible at this cursor for this filter.</div>';return;}
+        target.innerHTML=visible.map(function(event){
+          var copy=event.eventType==="GOAL"?(event.team==="HOME"?model.fixture.homeLabel + " goal":model.fixture.awayLabel + " goal"):"Kickoff";
+          copy=event.label||copy;
+          var detail=event.detail?'<div class="event-detail">'+escapeHtml(event.detail)+'</div>':"";
           return '<div class="event '+String(event.importance||"STANDARD").toLowerCase()+'"><div class="event-time">'+escapeHtml(event.clockLabel||String(event.minute)+"′")+'</div><div class="event-copy">'+escapeHtml(copy)+detail+'</div><div class="event-tag">'+escapeHtml(event.category||event.eventType)+'</div></div>';
         }).join("");
       }
-      function renderViewer(prefix,payload) {
+      function renderViewer(prefix,payload){
         var state=payload&&payload.state?payload.state:null,session=payload&&payload.session?payload.session:null;
         if(!state||!session)return;
         el[prefix+"-score"].textContent=state.score.home+" : "+state.score.away;
-        el[prefix + "-minute"].textContent = "Viewer minute " + state.session.viewerMinute;
-        renderOdds(el[prefix+"-odds"],state.impliedProbabilities);
+        var viewerTime=model.fixture?minuteLabel((session.visibilityCursor-model.fixture.kickoffTimestamp)/60000):String(state.session.viewerMinute).padStart(2,"0")+":00";
+        el[prefix+"-minute"].textContent="Viewer time "+viewerTime;
+        renderOdds(prefix,state);
         renderStats(el[prefix+"-stats"],state.statistics);
         renderEvents(el[prefix+"-events"],state.events);
         el[prefix+"-event-count"].textContent=filteredEvents(state.events).length+" shown / "+state.events.length+" visible";
         el[prefix+"-explanation"].textContent=state.latestExplanation||"No new visible event requires an explanation.";
         var badge=el[prefix+"-badge"];
-        badge.textContent = state.safety.active ? "SAFE HOLD" : state.session.statusBadge;
+        badge.textContent=state.safety.active?"SAFE HOLD":(prefix==="live"&&model.fixture&&model.fixture.demoKind==="CURATED"?"FINAL STATE":state.session.statusBadge);
       }
-      function render() {
-        if (model.fixture) {
-          el["match-title"].textContent = "Northbridge vs Southport";
-          el["match-meta"].textContent = model.fixture.provenance + " replay · two independent server sessions";
+      function renderDock(){
+        if(!model.fixture||!model.personal||!model.live)return;
+        var personal=model.personal.state,live=model.live.state,last=personal.events.length?personal.events[personal.events.length-1]:null;
+        el["dock-context"].textContent=(model.fixture.demoKind==="CURATED"?"Replay cursor":"Personal cursor")+" · "+model.fixture.homeLabel+" vs "+model.fixture.awayLabel;
+        el["dock-score"].textContent=model.fixture.homeLabel+" "+personal.score.home+" : "+personal.score.away+" "+model.fixture.awayLabel+" · "+(model.fixture.demoKind==="CURATED"?"Final":"Live edge")+" "+live.score.home+" : "+live.score.away;
+        el["dock-latest"].textContent="Latest visible event: "+(last?(last.label||last.eventType.replaceAll("_"," "))+" · "+(last.clockLabel||String(last.minute)+"′"):"none");
+      }
+      function render(){
+        if(model.fixture){
+          el["match-title"].textContent=model.fixture.homeLabel+" vs "+model.fixture.awayLabel;
+          var partialCoverage=model.fixture.coverage&&model.fixture.coverage.scoreHistory === "PARTIAL_OPENING";
+          var providerStartMinute=partialCoverage?minuteLabel((model.fixture.coverage.providerScoreStartTimestamp-model.fixture.kickoffTimestamp)/60000):"";
+          el["match-meta"].textContent=model.fixture.demoKind==="CURATED"?(partialCoverage?"Authenticated TxLINE partial historical replay · local 0-0 kickoff baseline · provider score archive begins at "+providerStartMinute:"Authenticated TxLINE completed-match replay · two isolated server sessions"):model.fixture.provenance+" replay · two independent server sessions";
+          var teams=document.querySelectorAll(".team");
+          if(teams.length>=4){teams[0].textContent=model.fixture.homeLabel;teams[1].textContent=model.fixture.awayLabel;teams[2].textContent=model.fixture.homeLabel;teams[3].textContent=model.fixture.awayLabel;}
+          var headings=document.querySelectorAll(".viewer-head h2");
+          if(headings.length>=2){headings[0].textContent=model.fixture.demoKind==="CURATED"?"Completed edge":"Live edge";headings[1].textContent=model.fixture.demoKind==="CURATED"?"Replay from kickoff":"Personal timeline";}
         }
         renderViewer("live",model.live);
         renderViewer("personal",model.personal);
+        updateFilterLabels(model.live&&model.live.state?model.live.state.events:[]);
         var total=model.personal&&model.personal.state?model.personal.state.events.length:0;
-        el["event-count"].textContent=total+" events visible at personal cursor";
+        el["event-count"].textContent=filteredEvents(model.personal&&model.personal.state?model.personal.state.events:[]).length+" shown / "+total+" visible";
         if(model.personal&&model.fixture){var cursorMinute=(model.personal.session.visibilityCursor-model.fixture.kickoffTimestamp)/60000;el.cursor.value=String(Math.max(0,Math.min(model.fixture.maxMinute,cursorMinute)));el["cursor-readout"].textContent=minuteLabel(cursorMinute);}
+        renderDock();
       }
-      function startDemo() {
-        clearError(); setBusy(true);
-        api("/api/demo/start", { method: "POST", body: "{}" })
-          .then(function (payload) {
-            model.fixture = payload.fixture;
-            model.live=payload.live; model.personal=payload.personal; el.cursor.max=String(payload.fixture.maxMinute); render();
-          })
-          .catch(showError).finally(function(){setBusy(false);});
+      function startDemo(endpoint){
+        clearError();setBusy(true);
+        api(endpoint,{method:"POST",body:"{}"}).then(function(payload){model.demoEndpoint=endpoint;model.fixture=payload.fixture;model.live=payload.live;model.personal=payload.personal;model.timelineFilter="KEY";el["timeline-filter"].value="KEY";el.cursor.max=String(payload.fixture.maxMinute);el["replay-dock"].style.display="block";render();}).catch(showError).finally(function(){setBusy(false);});
       }
       function patchPersonal(command){if(!model.personal)return Promise.resolve();clearError();setBusy(true);return api("/api/sessions/"+encodeURIComponent(model.personal.session.sessionId),{method:"PATCH",body:JSON.stringify(command)}).then(function(payload){model.personal=payload;render();}).catch(showError).finally(function(){setBusy(false);});}
-      el["start-demo"].addEventListener("click", startDemo);
+      el["start-demo"].addEventListener("click",function(){startDemo("/api/demo/start");});
+      el["start-curated"].addEventListener("click",function(){startDemo("/api/demo/curated/start");});
+      el.cursor.addEventListener("input",function(){el["cursor-readout"].textContent=minuteLabel(Number(el.cursor.value));});
       el.cursor.addEventListener("change",function(){if(!model.fixture)return;var minute=Number(el.cursor.value);patchPersonal({type:"ADVANCE_TO",cursorMs:model.fixture.kickoffTimestamp+Math.round(minute*60000)});});
       el["timeline-filter"].addEventListener("change",function(){model.timelineFilter=el["timeline-filter"].value;render();});
+      el["rewind-one"].addEventListener("click",function(){if(!model.personal||!model.fixture)return;patchPersonal({type:"ADVANCE_TO",cursorMs:Math.max(model.fixture.kickoffTimestamp,model.personal.session.visibilityCursor-60000)});});
       el["advance-one"].addEventListener("click",function(){if(!model.personal||!model.fixture)return;patchPersonal({type:"ADVANCE_TO",cursorMs:Math.min(model.fixture.liveEdgeTimestamp,model.personal.session.visibilityCursor+60000)});});
       el.pause.addEventListener("click",function(){patchPersonal({type:"PAUSE"});});
       el.resume.addEventListener("click",function(){patchPersonal({type:"RESUME"});});
       el["catch-up"].addEventListener("click",function(){patchPersonal({type:"CATCH_UP"});});
-      el.reset.addEventListener("click", startDemo);
-      renderOdds(el["live-odds"],null); renderOdds(el["personal-odds"],null); renderStats(el["live-stats"],null); renderStats(el["personal-stats"],null);
-      api("/api/data-source/status").then(function(status){el["source-status"].textContent=status.mode==="synthetic"?"Synthetic judge replay ready":"Optional "+status.mode+" backend";})
-        .catch(function () {
-          el["source-status"].textContent = "Judge replay ready";
-        });
+      el.reset.addEventListener("click",function(){startDemo(model.demoEndpoint);});
+      renderOdds("live",{events:[]});renderOdds("personal",{events:[]});renderStats(el["live-stats"],null);renderStats(el["personal-stats"],null);setBusy(false);
+      api("/api/data-source/status").then(function(status){el["source-status"].textContent=status.mode==="synthetic"?"Synthetic judge replay ready":"Optional "+status.mode+" backend";}).catch(function(){el["source-status"].textContent="Judge replay ready";});
+      api("/api/demo/curated/status").then(function(status){if(!status.available)return;el["start-curated"].style.display="block";el["source-status"].textContent=status.fixture.coverage&&status.fixture.coverage.scoreHistory === "PARTIAL_OPENING"?"Synthetic judge demo + disclosed partial TxLINE replay ready":"Synthetic judge demo + curated TxLINE replay ready";}).catch(function(){el["start-curated"].style.display="none";});
     })();
   </script>
 </body>
