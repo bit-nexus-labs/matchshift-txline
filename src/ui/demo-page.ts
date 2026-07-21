@@ -38,7 +38,9 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     .dock-top { display:flex; justify-content:space-between; gap:14px; align-items:center; }
     .dock-score { font-size:18px; font-weight:850; }
     .dock-context,.dock-latest { color:var(--muted); font-size:11px; }
-    .dock-time { color:var(--accent); font-size:13px; font-weight:800; white-space:nowrap; }
+    .dock-time { display:grid; gap:2px; text-align:right; white-space:nowrap; }
+    .dock-time strong { color:var(--accent); font-size:13px; font-weight:850; }
+    .dock-time span { color:var(--muted); font-size:10px; font-weight:650; }
     .dock-controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
     .dock-latest { margin-top:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     input[type=range] { width:100%; margin-top:9px; accent-color:var(--accent); }
@@ -85,7 +87,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
     .error { display:none; margin:0 0 12px; padding:11px; border:1px solid #713541; border-radius:10px; color:#ffd8dd; }
     .error.visible { display:block; }
     @media(max-width:900px){ .hero,.compare{grid-template-columns:1fr}.viewer+.viewer{border-left:0;border-top:1px solid var(--line)}.architecture{grid-template-columns:1fr 1fr}.node::after{display:none}.product-update{grid-template-columns:1fr} }
-    @media(max-width:560px){ .shell{width:calc(100% - 16px)}.stats-grid{grid-template-columns:repeat(3,1fr)}.event{grid-template-columns:45px 1fr}.event-tag{display:none}.dock-top{align-items:flex-start;flex-direction:column}.dock-controls button{flex:1 1 auto}.architecture{grid-template-columns:1fr}.update-link{width:100%}footer{flex-direction:column} }
+    @media(max-width:560px){ .shell{width:calc(100% - 16px)}.stats-grid{grid-template-columns:repeat(3,1fr)}.event{grid-template-columns:45px 1fr}.event-tag{display:none}.dock-top{align-items:flex-start;flex-direction:column}.dock-time{text-align:left}.dock-controls button{flex:1 1 auto}.architecture{grid-template-columns:1fr}.update-link{width:100%}footer{flex-direction:column} }
   </style>
 </head>
 <body>
@@ -100,7 +102,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
       <header class="demo-head"><div><div class="match-title" id="match-title">Choose a replay above</div><div class="match-meta" id="match-meta">The replay controls appear after a scenario starts.</div></div><div class="shield">◆ Spoiler shield active</div></header>
       <div class="toolbar"><label>Timeline view <select id="timeline-filter"><option id="filter-key" value="KEY" selected>Key events</option><option id="filter-highlights" value="HIGHLIGHTS">Highlights</option><option id="filter-full" value="FULL">Full timeline</option></select></label><span id="event-count">0 visible events</span></div>
       <section class="replay-dock" id="replay-dock" style="display:none" aria-live="polite">
-        <div class="dock-top"><div><div class="dock-context" id="dock-context">Replay cursor</div><div class="dock-score" id="dock-score">– : –</div></div><div class="dock-time" id="cursor-readout">00:00</div></div>
+        <div class="dock-top"><div><div class="dock-context" id="dock-context">Replay cursor</div><div class="dock-score" id="dock-score">– : –</div></div><div class="dock-time"><strong id="cursor-match-clock">Match clock 0′</strong><span id="cursor-readout">Replay elapsed 00:00</span></div></div>
         <input id="cursor" type="range" min="0" max="52" step="0.1666667" value="0" disabled aria-label="Personal viewing minute" />
         <div class="dock-controls"><button class="secondary" id="rewind-one" disabled>−1 minute</button><button class="secondary" id="advance-one" disabled>+1 minute</button><button class="secondary" id="pause" disabled>Pause</button><button class="secondary" id="resume" disabled>Resume</button><button class="secondary" id="catch-up" disabled>Catch up</button><button class="quiet" id="reset" disabled>Restart replay</button></div>
         <div class="dock-latest" id="dock-latest">Latest visible event: none</div>
@@ -168,7 +170,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
         "reset", "error-banner", "source-status", "match-title", "match-meta", "replay-dock", "dock-context", "dock-score", "dock-latest",
         "live-badge", "live-score", "live-minute", "live-odds", "live-odds-label", "live-odds-note", "live-events",
         "live-explanation", "personal-badge", "personal-score", "personal-minute", "personal-odds", "personal-odds-label", "personal-odds-note",
-        "personal-events", "personal-explanation", "cursor-readout", "timeline-filter", "event-count", "live-event-count", "personal-event-count",
+        "personal-events", "personal-explanation", "cursor-match-clock", "cursor-readout", "timeline-filter", "event-count", "live-event-count", "personal-event-count",
         "live-stats", "personal-stats", "filter-key", "filter-highlights", "filter-full"
       ];
       var el = {};
@@ -176,6 +178,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
       function escapeHtml(value) { return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;"); }
       function api(url, options) { var init=options||{}; init.headers=Object.assign({"Content-Type":"application/json"},init.headers||{}); return fetch(url,init).then(function(response){return response.json().catch(function(){return {};}).then(function(body){if(!response.ok)throw new Error(body.error||"Request failed");return body;});}); }
       function minuteLabel(value) { var whole=Math.floor(value),seconds=Math.round((value-whole)*60); if(seconds===60){whole+=1;seconds=0;} return String(whole).padStart(2,"0")+":"+String(seconds).padStart(2,"0"); }
+      function latestVisibleMatchClock(state) { var events=state&&state.events?state.events:[],last=events.length?events[events.length-1]:null; if(!last)return "0′"; if(last.eventType==="MATCH_FINAL")return "FT"; return last.clockLabel||String(last.minute)+"′"; }
       function showError(error) { el["error-banner"].textContent=error instanceof Error?error.message:String(error); el["error-banner"].classList.add("visible"); }
       function clearError() { el["error-banner"].textContent=""; el["error-banner"].classList.remove("visible"); }
       function setBusy(value) {
@@ -219,8 +222,8 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
         var state=payload&&payload.state?payload.state:null,session=payload&&payload.session?payload.session:null;
         if(!state||!session)return;
         el[prefix+"-score"].textContent=state.score.home+" : "+state.score.away;
-        var viewerTime=model.fixture?minuteLabel((session.visibilityCursor-model.fixture.kickoffTimestamp)/60000):String(state.session.viewerMinute).padStart(2,"0")+":00";
-        el[prefix+"-minute"].textContent="Viewer time "+viewerTime;
+        var viewerElapsed=model.fixture?minuteLabel((session.visibilityCursor-model.fixture.kickoffTimestamp)/60000):String(state.session.viewerMinute).padStart(2,"0")+":00";
+        el[prefix+"-minute"].textContent=model.fixture&&model.fixture.demoKind==="CURATED"?"Match clock "+latestVisibleMatchClock(state)+" · replay elapsed "+viewerElapsed:"Viewer time "+viewerElapsed;
         renderOdds(prefix,state);
         renderStats(el[prefix+"-stats"],state.statistics);
         renderEvents(el[prefix+"-events"],state.events);
@@ -231,9 +234,10 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
       }
       function renderDock(){
         if(!model.fixture||!model.personal||!model.live)return;
-        var personal=model.personal.state,live=model.live.state,last=personal.events.length?personal.events[personal.events.length-1]:null;
+        var personal=model.personal.state,live=model.live.state,last=personal.events.length?personal.events[personal.events.length-1]:null,elapsed=minuteLabel((model.personal.session.visibilityCursor-model.fixture.kickoffTimestamp)/60000);
         el["dock-context"].textContent=(model.fixture.demoKind==="CURATED"?"Replay cursor":"Personal cursor")+" · "+model.fixture.homeLabel+" vs "+model.fixture.awayLabel;
         el["dock-score"].textContent=model.fixture.homeLabel+" "+personal.score.home+" : "+personal.score.away+" "+model.fixture.awayLabel+" · "+(model.fixture.demoKind==="CURATED"?"Final":"Live edge")+" "+live.score.home+" : "+live.score.away;
+        el["cursor-match-clock"].textContent=model.fixture.demoKind==="CURATED"?"Match clock "+latestVisibleMatchClock(personal):"Viewer time "+elapsed;
         el["dock-latest"].textContent="Latest visible event: "+(last?(last.label||last.eventType.replaceAll("_"," "))+" · "+(last.clockLabel||String(last.minute)+"′"):"none");
       }
       function render(){
@@ -252,7 +256,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
         updateFilterLabels(model.live&&model.live.state?model.live.state.events:[]);
         var total=model.personal&&model.personal.state?model.personal.state.events.length:0;
         el["event-count"].textContent=filteredEvents(model.personal&&model.personal.state?model.personal.state.events:[]).length+" shown / "+total+" visible";
-        if(model.personal&&model.fixture){var cursorMinute=(model.personal.session.visibilityCursor-model.fixture.kickoffTimestamp)/60000;el.cursor.value=String(Math.max(0,Math.min(model.fixture.maxMinute,cursorMinute)));el["cursor-readout"].textContent=minuteLabel(cursorMinute);}
+        if(model.personal&&model.fixture){var cursorMinute=(model.personal.session.visibilityCursor-model.fixture.kickoffTimestamp)/60000;el.cursor.value=String(Math.max(0,Math.min(model.fixture.maxMinute,cursorMinute)));el["cursor-readout"].textContent=(model.fixture.demoKind==="CURATED"?"Replay elapsed ":"")+minuteLabel(cursorMinute);}
         renderDock();
       }
       function startDemo(endpoint){
@@ -262,7 +266,7 @@ export const DEMO_PAGE_HTML = String.raw`<!doctype html>
       function patchPersonal(command){if(!model.personal)return Promise.resolve();clearError();setBusy(true);return api("/api/sessions/"+encodeURIComponent(model.personal.session.sessionId),{method:"PATCH",body:JSON.stringify(command)}).then(function(payload){model.personal=payload;render();}).catch(showError).finally(function(){setBusy(false);});}
       el["start-demo"].addEventListener("click",function(){startDemo("/api/demo/start");});
       el["start-curated"].addEventListener("click",function(){startDemo("/api/demo/curated/start");});
-      el.cursor.addEventListener("input",function(){el["cursor-readout"].textContent=minuteLabel(Number(el.cursor.value));});
+      el.cursor.addEventListener("input",function(){el["cursor-readout"].textContent=(model.fixture&&model.fixture.demoKind==="CURATED"?"Replay elapsed ":"")+minuteLabel(Number(el.cursor.value));});
       el.cursor.addEventListener("change",function(){if(!model.fixture)return;var minute=Number(el.cursor.value);patchPersonal({type:"ADVANCE_TO",cursorMs:model.fixture.kickoffTimestamp+Math.round(minute*60000)});});
       el["timeline-filter"].addEventListener("change",function(){model.timelineFilter=el["timeline-filter"].value;render();});
       el["rewind-one"].addEventListener("click",function(){if(!model.personal||!model.fixture)return;patchPersonal({type:"ADVANCE_TO",cursorMs:Math.max(model.fixture.kickoffTimestamp,model.personal.session.visibilityCursor-60000)});});
