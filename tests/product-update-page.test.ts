@@ -11,6 +11,6 @@ describe("judge page product context", () => {
     expect(DEMO_PAGE_HTML).toContain(
       "docs/PRODUCT_UPDATE_2026-07-21.md"
     );
-    expect(DEMO_PAGE_HTML).toContain("post-submission");
+    expect(DEMO_PAGE_HTML).toContain("Post-submission product update");
   });
 });
