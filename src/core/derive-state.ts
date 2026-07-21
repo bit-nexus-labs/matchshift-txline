@@ -127,6 +127,7 @@ export function deriveVisibleMatchState(
 
   let score: Score = { home: 0, away: 0 };
   let impliedProbabilities: ImpliedProbabilities | undefined;
+  let impliedProbabilitiesTimestamp: number | undefined;
   const events: VisibleEvent[] = [];
   const statistics: VisibleMatchStatistics = {
     home: emptyTeamStatistics(),
@@ -136,12 +137,16 @@ export function deriveVisibleMatchState(
   for (const record of safety.trustedRecords) {
     if (record.kind === "recovery") {
       score = { ...record.snapshot.score };
-      impliedProbabilities = record.snapshot.impliedProbabilities;
+      if (record.snapshot.impliedProbabilities !== undefined) {
+        impliedProbabilities = { ...record.snapshot.impliedProbabilities };
+        impliedProbabilitiesTimestamp = record.sourceTimestamp;
+      }
       continue;
     }
 
     if (record.kind === "odds") {
       impliedProbabilities = { ...record.impliedProbabilities };
+      impliedProbabilitiesTimestamp = record.sourceTimestamp;
       continue;
     }
 
@@ -184,6 +189,9 @@ export function deriveVisibleMatchState(
     events,
     statistics,
     ...(impliedProbabilities === undefined ? {} : { impliedProbabilities }),
+    ...(impliedProbabilitiesTimestamp === undefined
+      ? {}
+      : { impliedProbabilitiesTimestamp }),
     ...(latestEvent === undefined || latestTrustedRecord?.kind === "recovery"
       ? {}
       : { latestExplanation: explainLatestEvent(latestEvent, score) }),
