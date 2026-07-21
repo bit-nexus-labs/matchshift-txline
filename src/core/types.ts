@@ -197,6 +197,7 @@ export interface VisibleMatchState {
   events: VisibleEvent[];
   statistics: VisibleMatchStatistics;
   impliedProbabilities?: ImpliedProbabilities;
+  impliedProbabilitiesTimestamp?: number;
   latestExplanation?: string;
   safety: SafetyStatus;
 }
