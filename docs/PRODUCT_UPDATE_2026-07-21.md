@@ -46,7 +46,12 @@ It keeps these values together:
 - latest visible event;
 - rewind, advance, pause, resume, catch-up, and restart controls.
 
-This makes cursor movement immediately understandable: the viewer can see when the score changes without scrolling back to the scorecard.
+For the curated completed-match replay, the controller now separates two time domains explicitly:
+
+- **Match clock** — the football clock from the latest event visible to that viewer, such as `106′`, `ET HT`, or `FT`;
+- **Replay elapsed** — the source-timeline distance from kickoff, including half-time, extra-time intervals, stoppages, and provider timing gaps.
+
+This prevents a source elapsed value such as `121:10` from being mistaken for the football minute of the Spain goal at `106′`. The viewer can see when the score changes without scrolling back to the scorecard.
 
 ## 4. Choose the right event density
 
@@ -91,7 +96,7 @@ Every response is rebuilt from records at or before that session's effective cur
 
 1. Start the curated Spain vs Argentina replay.
 2. Confirm that **Key events** is selected.
-3. Move the cursor toward the 106th minute and watch the sticky score update.
+3. Move the replay elapsed cursor until the separate match-clock label shows `106′`; the Spain goal and `1-0` score should appear together.
 4. Switch briefly to **Highlights**, then **Full timeline**.
-5. Catch up to the final state and review **Last available market snapshot**.
+5. Catch up to the final state and confirm that the match clock reads `FT` before reviewing **Last available market snapshot**.
 6. Scroll below the replay to inspect the server-side boundary and five-stage architecture.
