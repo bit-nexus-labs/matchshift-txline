@@ -42,6 +42,7 @@ function canonicalStatePayload(state: VisibleMatchState): string {
       team: event.team ?? null
     })),
     impliedProbabilities: state.impliedProbabilities ?? null,
+    impliedProbabilitiesTimestamp: state.impliedProbabilitiesTimestamp ?? null,
     latestExplanation: state.latestExplanation ?? null,
     safety: {
       active: state.safety.active,
