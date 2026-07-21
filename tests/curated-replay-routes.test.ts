@@ -58,6 +58,12 @@ describe("curated replay judge routes", () => {
             home: Record<string, number>;
             away: Record<string, number>;
           };
+          impliedProbabilities: {
+            homeWin: number;
+            draw: number;
+            awayWin: number;
+          };
+          impliedProbabilitiesTimestamp: number;
         };
       };
       personal: {
@@ -65,6 +71,7 @@ describe("curated replay judge routes", () => {
         state: {
           score: { home: number; away: number };
           events: Array<{ eventType: string; minute: number }>;
+          impliedProbabilities?: Record<string, number>;
         };
       };
     }>();
@@ -103,8 +110,15 @@ describe("curated replay judge routes", () => {
         substitutions: 6
       }
     });
+    expect(payload.live.state.impliedProbabilities).toEqual({
+      homeWin: 0.057457822529820714,
+      draw: 0.9369879212922966,
+      awayWin: 0.005554256177882669
+    });
+    expect(payload.live.state.impliedProbabilitiesTimestamp).toBe(1_784_493_885_000);
     expect(payload.personal.session.mode).toBe("REPLAY");
     expect(payload.personal.state.score).toEqual({ home: 0, away: 0 });
+    expect(payload.personal.state.impliedProbabilities).toBeUndefined();
     expect(
       payload.personal.state.events.some((event) => event.eventType === "GOAL")
     ).toBe(false);
@@ -137,9 +151,13 @@ describe("curated replay judge routes", () => {
     expect(response.body).toContain('style="display:none');
     expect(response.body).toContain('api("/api/demo/curated/status")');
     expect(response.body).toContain('model.fixture.homeLabel + " goal"');
+    expect(response.body).toContain('id="replay-dock"');
+    expect(response.body).toContain("position:sticky");
     expect(response.body).toContain('id="timeline-filter"');
+    expect(response.body).toContain('value="KEY" selected');
     expect(response.body).toContain("Key events");
     expect(response.body).toContain("Full timeline");
+    expect(response.body).toContain("Last available market snapshot");
     expect(response.body).toContain('id="live-stats"');
     expect(response.body).toContain('scoreHistory === "PARTIAL_OPENING"');
     expect(response.body).toContain("local 0-0 kickoff baseline");
