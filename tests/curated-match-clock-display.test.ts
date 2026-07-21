@@ -20,14 +20,17 @@ describe("curated replay clock display", () => {
       (record) => record.kind === "event" && record.eventType === "GOAL"
     );
 
-    expect(goal?.sourceTimestamp).toBeDefined();
-    expect(goal?.sourceTimestamp - CURATED_REAL_MATCH.kickoffTimestamp).toBe(
+    if (goal === undefined || goal.kind !== "event") {
+      throw new Error("Curated Spain goal was not found.");
+    }
+
+    expect(goal.sourceTimestamp - CURATED_REAL_MATCH.kickoffTimestamp).toBe(
       7_256_000
     );
 
     const state = deriveVisibleMatchState(
       CURATED_REAL_MATCH,
-      replaySession(goal?.sourceTimestamp ?? 0)
+      replaySession(goal.sourceTimestamp)
     );
 
     expect(state.events.at(-1)).toMatchObject({
