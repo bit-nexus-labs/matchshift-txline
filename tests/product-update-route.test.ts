@@ -52,6 +52,15 @@ describe("published product update", () => {
     );
     expect(imageUrls).toEqual(PRODUCT_UPDATE_IMAGE_URLS);
     expect(new Set(imageUrls).size).toBe(4);
+
+    const fullSizeUrls = Array.from(
+      response.body.matchAll(
+        /<a class="shot" href="([^"]+)" target="_blank"/g
+      ),
+      (match) => match[1]
+    );
+    expect(fullSizeUrls).toEqual(PRODUCT_UPDATE_IMAGE_URLS);
+    expect(response.body).toContain("Open screenshot at full size");
   });
 
   it("serves every screenshot as a full-size WebP asset", async () => {
