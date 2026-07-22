@@ -1,8 +1,3 @@
-import { PRODUCT_UPDATE_IMAGE_1 } from "./product-update-image-1.js";
-import { PRODUCT_UPDATE_IMAGE_2 } from "./product-update-image-2.js";
-import { PRODUCT_UPDATE_IMAGE_3 } from "./product-update-image-3.js";
-import { PRODUCT_UPDATE_IMAGE_4 } from "./product-update-image-4.js";
-
 export const PRODUCT_UPDATE_PAGE_HTML = String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -37,10 +32,10 @@ export const PRODUCT_UPDATE_PAGE_HTML = String.raw`<!doctype html>
       <section class="metrics"><div class="metric"><b>206</b><span>sanitized events</span></div><div class="metric"><b>15</b><span>historical 1X2 snapshots</span></div><div class="metric"><b>2</b><span>isolated viewer sessions</span></div><div class="metric"><b>0</b><span>raw provider IDs exposed</span></div></section>
       <div class="ey">Product walkthrough</div><h2>From kickoff to full time</h2>
       <section class="story">
-        <article><div><small>01</small><h2>Start from kickoff</h2><p>Match clock 0′ and replay elapsed 00:00 begin from the same spoiler-safe baseline.</p></div><img src="${PRODUCT_UPDATE_IMAGE_1}" alt="Start from kickoff"></article>
-        <article><div><small>02</small><h2>Independent personal cursor</h2><p>At match clock 70′, the viewer receives only state already visible at that cursor.</p></div><img src="${PRODUCT_UPDATE_IMAGE_2}" alt="Independent personal cursor"></article>
-        <article><div><small>03</small><h2>Goal revealed at 106′</h2><p>The 1–0 score, match clock 106′ and the Spain goal appear together.</p></div><img src="${PRODUCT_UPDATE_IMAGE_3}" alt="Goal revealed at 106 minutes"></article>
-        <article><div><small>04</small><h2>Full time and server-side proof</h2><p>At FT, the completed timeline and the no-client-side-hiding boundary remain visible.</p></div><img src="${PRODUCT_UPDATE_IMAGE_4}" alt="Full time and server-side proof"></article>
+        <article><div><small>01</small><h2>Start from kickoff</h2><p>Match clock 0′ and replay elapsed 00:00 begin from the same spoiler-safe baseline.</p></div><img src="/product-update/images/1.webp" alt="Start from kickoff"></article>
+        <article><div><small>02</small><h2>Independent personal cursor</h2><p>At match clock 70′, the viewer receives only state already visible at that cursor.</p></div><img src="/product-update/images/2.webp" alt="Independent personal cursor"></article>
+        <article><div><small>03</small><h2>Goal revealed at 106′</h2><p>The 1–0 score, match clock 106′ and the Spain goal appear together.</p></div><img src="/product-update/images/3.webp" alt="Goal revealed at 106 minutes"></article>
+        <article><div><small>04</small><h2>Full time and server-side proof</h2><p>At FT, the completed timeline and the no-client-side-hiding boundary remain visible.</p></div><img src="/product-update/images/4.webp" alt="Full time and server-side proof"></article>
       </section>
       <section class="times"><div class="box"><div class="ey">Football truth</div><b>Match clock</b><p>The latest visible football event: 70′, 106′, 120+4′ or FT.</p></div><div class="box"><div class="ey">Replay transport</div><b>Replay elapsed</b><p>Source-timeline distance including intervals, stoppages and timing gaps.</p></div></section>
       <div class="ey">Spoiler-safe architecture</div><h2>No client-side hiding</h2>
