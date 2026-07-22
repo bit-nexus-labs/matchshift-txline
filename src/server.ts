@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import Fastify, {
   type FastifyInstance,
@@ -12,8 +13,26 @@ import { PRODUCT_UPDATE_PAGE_HTML } from "./ui/product-update-page.js";
 const PRODUCT_UPDATE_MARKDOWN_URL =
   "https://github.com/bit-nexus-labs/matchshift-txline/blob/main/docs/PRODUCT_UPDATE_2026-07-21.md";
 const PRODUCT_UPDATE_PATH = "/product-update";
+const PRODUCT_UPDATE_IMAGES = [
+  {
+    path: "/product-update/images/1.webp",
+    fileUrl: new URL("../public/product-update/product-update-1.webp", import.meta.url)
+  },
+  {
+    path: "/product-update/images/2.webp",
+    fileUrl: new URL("../public/product-update/product-update-2.webp", import.meta.url)
+  },
+  {
+    path: "/product-update/images/3.webp",
+    fileUrl: new URL("../public/product-update/product-update-3.webp", import.meta.url)
+  },
+  {
+    path: "/product-update/images/4.webp",
+    fileUrl: new URL("../public/product-update/product-update-4.webp", import.meta.url)
+  }
+] as const;
 const PUBLIC_PAGE_CSP =
-  "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+  "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 export interface BuildAppOptions {
   matches?: readonly MatchDefinition[];
@@ -28,6 +47,13 @@ function publicHtmlReply(reply: FastifyReply): FastifyReply {
     .header("Referrer-Policy", "no-referrer")
     .header("Cache-Control", "no-store")
     .type("text/html; charset=utf-8");
+}
+
+function publicImageReply(reply: FastifyReply): FastifyReply {
+  return reply
+    .header("X-Content-Type-Options", "nosniff")
+    .header("Cache-Control", "public, max-age=86400")
+    .type("image/webp");
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
@@ -57,6 +83,13 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   app.get(PRODUCT_UPDATE_PATH, async (_request, reply) => {
     await publicHtmlReply(reply).send(PRODUCT_UPDATE_PAGE_HTML);
   });
+
+  for (const image of PRODUCT_UPDATE_IMAGES) {
+    app.get(image.path, async (_request, reply) => {
+      const body = await readFile(image.fileUrl);
+      await publicImageReply(reply).send(body);
+    });
+  }
 
   void registerRoutes(app, { matches, sessions, dataSource });
   return app;
