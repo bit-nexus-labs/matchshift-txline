@@ -1,14 +1,18 @@
 # MatchShift product update — Spain vs Argentina rich replay
 
 **Update date:** July 21, 2026  
+**Visual page finalized:** July 22, 2026  
 **Track:** Consumer & Fan Experiences by TxODDS  
-**Live app:** https://matchshift-txline.onrender.com
+**Live app:** https://matchshift-txline.onrender.com  
+**Product update page:** https://matchshift-txline.onrender.com/product-update
 
 ## Transparency note
 
 The original hackathon submission already contained the working spoiler-safe timeline core, public deployment, TxLINE integration, synthetic judge path, and narrated demo video.
 
 This document describes **post-submission product refinements** made to the same public repository and deployment. The refinements improve the completed-match experience; they do not replace or conceal the original submission history.
+
+The public Product Update page provides a four-screen visual walkthrough. Each screenshot is served as a standalone WebP asset and can be opened at full size without exposing raw provider identifiers or private evidence. The embedded view centers each screenshot at a balanced maximum width while keeping the full-resolution asset available by click.
 
 ## 1. Start with the guaranteed judge path
 
@@ -89,14 +93,21 @@ Every response is rebuilt from records at or before that session's effective cur
 
 - Rich completed-match replay: [PR #67](https://github.com/bit-nexus-labs/matchshift-txline/pull/67)
 - Sticky controls and final odds context: [PR #68](https://github.com/bit-nexus-labs/matchshift-txline/pull/68)
+- Separate match clock and replay elapsed time: [PR #70](https://github.com/bit-nexus-labs/matchshift-txline/pull/70)
+- Public Product Update route: [PR #72](https://github.com/bit-nexus-labs/matchshift-txline/pull/72)
+- Full-size WebP screenshot assets: [PR #73](https://github.com/bit-nexus-labs/matchshift-txline/pull/73)
+- Readable full-size screenshot links: [PR #74](https://github.com/bit-nexus-labs/matchshift-txline/pull/74)
+- Balanced centered screenshot width: [PR #75](https://github.com/bit-nexus-labs/matchshift-txline/pull/75)
 - Public repository: https://github.com/bit-nexus-labs/matchshift-txline
 - Live deployment: https://matchshift-txline.onrender.com
+- Product update page: https://matchshift-txline.onrender.com/product-update
 
 ## Suggested two-minute review path
 
-1. Start the curated Spain vs Argentina replay.
-2. Confirm that **Key events** is selected.
-3. Move the replay elapsed cursor until the separate match-clock label shows `106′`; the Spain goal and `1-0` score should appear together.
-4. Switch briefly to **Highlights**, then **Full timeline**.
-5. Catch up to the final state and confirm that the match clock reads `FT` before reviewing **Last available market snapshot**.
-6. Scroll below the replay to inspect the server-side boundary and five-stage architecture.
+1. Open the Product Update page for the four-screen visual overview.
+2. Open the live app and start the curated Spain vs Argentina replay.
+3. Confirm that **Key events** is selected.
+4. Move the replay elapsed cursor until the separate match-clock label shows `106′`; the Spain goal and `1-0` score should appear together.
+5. Switch briefly to **Highlights**, then **Full timeline**.
+6. Catch up to the final state and confirm that the match clock reads `FT` before reviewing **Last available market snapshot**.
+7. Scroll below the replay to inspect the server-side boundary and five-stage architecture.

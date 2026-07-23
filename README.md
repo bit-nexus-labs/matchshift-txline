@@ -7,8 +7,11 @@ The deterministic synthetic replay is the guaranteed judge path. An optional bac
 ## Live judge demo
 
 - App: https://matchshift-txline.onrender.com
+- Product update: https://matchshift-txline.onrender.com/product-update
 - Health: https://matchshift-txline.onrender.com/health
 - No login, wallet, payment, subscription, or external account is required.
+
+The Product Update page provides a four-screen visual walkthrough of the post-submission Spain vs Argentina completed-match replay while preserving the original submission history.
 
 ## Milestone status
 
@@ -17,6 +20,7 @@ The deterministic synthetic replay is the guaranteed judge path. An optional bac
 | Spoiler-safe personal timeline core | Implemented and tested |
 | One-click judge comparison console | Implemented; no login, wallet, payment, or external account |
 | Deterministic synthetic data source | Implemented; default judge mode |
+| Curated completed-match replay | Implemented; 206 sanitized events and 15 historical 1X2 snapshots |
 | Mocked TxLINE snapshots and SSE | Implemented and tested without network access |
 | TxLINE devnet/mainnet transport | Implemented; authenticated historical integration and mainnet odds SSE transport passed privately |
 | Official odds and nested score normalization | Implemented with independent feed-ordering domains |
@@ -217,6 +221,7 @@ Tests cover:
 
 - [Documentation index](docs/README.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Product update](docs/PRODUCT_UPDATE_2026-07-21.md)
 - [Deployment runbook](docs/DEPLOYMENT.md)
 - [Public deployment receipt](docs/PUBLIC_DEPLOYMENT_RECEIPT_2026-07-16.md)
 - [Judge demo runbook](docs/JUDGE_DEMO_RUNBOOK.md)

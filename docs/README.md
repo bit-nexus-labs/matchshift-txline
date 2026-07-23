@@ -3,6 +3,7 @@
 ## Product and architecture
 
 - [Architecture](ARCHITECTURE.md) — data flow, ordering domains, session state machine, trust boundaries, and deployment model.
+- [Product update](PRODUCT_UPDATE_2026-07-21.md) — post-submission Spain vs Argentina rich replay, visual walkthrough, public route, and refinement evidence.
 - [Visibility receipts](VISIBILITY_RECEIPTS.md) — deterministic spoiler-safe state fingerprints and explicit non-proof claims.
 - [TxLINE Phantom activation](TXLINE_PHANTOM_ACTIVATION.md) — localhost-only free-tier subscription and API-token activation with Phantom.
 - [TxLINE integration smoke](TXLINE_INTEGRATION_SMOKE.md) — local authenticated historical evidence path, redacted receipt rules, and proof boundaries.
