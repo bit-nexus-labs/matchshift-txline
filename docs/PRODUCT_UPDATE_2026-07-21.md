@@ -12,7 +12,7 @@ The original hackathon submission already contained the working spoiler-safe tim
 
 This document describes **post-submission product refinements** made to the same public repository and deployment. The refinements improve the completed-match experience; they do not replace or conceal the original submission history.
 
-The public Product Update page provides a four-screen visual walkthrough. Each screenshot is served as a standalone WebP asset and can be opened at full size without exposing raw provider identifiers or private evidence.
+The public Product Update page provides a four-screen visual walkthrough. Each screenshot is served as a standalone WebP asset and can be opened at full size without exposing raw provider identifiers or private evidence. The embedded view centers each screenshot at a balanced maximum width while keeping the full-resolution asset available by click.
 
 ## 1. Start with the guaranteed judge path
 
